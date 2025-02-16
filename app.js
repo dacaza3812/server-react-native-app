@@ -2,7 +2,7 @@ require("dotenv").config();
 require("express-async-errors");
 
 const EventEmitter = require("events");
-EventEmitter.defaultMaxListeners = 20;
+EventEmitter.defaultMaxListeners = 100;
 
 const express = require("express");
 const http = require("http");
@@ -53,7 +53,7 @@ const start = async () => {
     // server.listen(process.env.PORT || 3000, "0.0.0.0", () =>
     server.listen(process.env.PORT || 3000, () =>
       console.log(
-        `HTTP server is running on port http://localhost:${
+        `HTTP server is running on port ${
           process.env.PORT || 3000
         }`
       )

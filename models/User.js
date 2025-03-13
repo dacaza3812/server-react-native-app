@@ -12,12 +12,12 @@ const userSchema = new Schema(
     phone: {
       type: String,
       required: true,
-      unique: true,
+      unique: false,
     },
     firebasePushToken: {
       type: String,
       required: true,
-      unique: true,
+      unique: false
     }
   },
   {

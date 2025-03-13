@@ -15,11 +15,34 @@ const auth = async (req, res) => {
   }
 
   try {
+    // Si se recibe un firebasePushToken, se busca si otro usuario (con phone diferente)
+    // ya lo tiene asignado; en ese caso se "desasocia" del otro usuario.
+    if (firebasePushToken) {
+      const userWithToken = await User.findOne({
+        firebasePushToken,
+        phone: { $ne: phone },
+      });
+      if (userWithToken) {
+        // Se actualiza el usuario anterior sin ejecutar validadores
+        await User.findByIdAndUpdate(
+          userWithToken._id,
+          { firebasePushToken: "" },
+          { runValidators: false }
+        );
+      }
+    }
+
     let user = await User.findOne({ phone });
 
     if (user) {
       if (user.role !== role) {
         throw new BadRequestError("Phone number and role do not match");
+      }
+
+      // Si el token recibido es diferente al almacenado, se actualiza.
+      if (firebasePushToken && firebasePushToken !== user.firebasePushToken) {
+        user.firebasePushToken = firebasePushToken;
+        await user.save();
       }
 
       const accessToken = user.createAccessToken();
@@ -33,10 +56,11 @@ const auth = async (req, res) => {
       });
     }
 
+    // Si el usuario no existe, se crea uno nuevo con el token recibido
     user = new User({
       phone,
       role,
-      firebasePushToken
+      firebasePushToken,
     });
 
     await user.save();
@@ -52,7 +76,7 @@ const auth = async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    throw error
+    throw error;
   }
 };
 
@@ -63,7 +87,10 @@ const refreshToken = async (req, res) => {
   }
 
   try {
-    const payload = jwt.verify(refresh_token, process.env.REFRESH_TOKEN_SECRET);
+    const payload = jwt.verify(
+      refresh_token,
+      process.env.REFRESH_TOKEN_SECRET
+    );
     const user = await User.findById(payload.id);
 
     if (!user) {
@@ -85,5 +112,5 @@ const refreshToken = async (req, res) => {
 
 module.exports = {
   refreshToken,
-  auth
+  auth,
 };

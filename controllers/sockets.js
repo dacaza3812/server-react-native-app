@@ -1,7 +1,10 @@
 const geolib = require("geolib");
 const User = require("../models/User");
-const Ride = require("../models/Ride"); // Import Ride model
+const Ride = require("../models/Ride");
 const jwt = require("jsonwebtoken");
+
+// Objeto para registrar los rideId a los que ya se envió la notificación
+const rideNotificationSent = {};
 
 const handleSocketConnection = (io) => {
   const onDutyCaptains = {};
@@ -17,13 +20,12 @@ const handleSocketConnection = (io) => {
       if (!user) {
         return next(new Error("Authentication invalid: User not found"));
       }
-      socket.user = { id: payload.id, role: user.role };
+      // Se añade la propiedad firebasePushToken al objeto de usuario
+      socket.user = { id: payload.id, role: user.role, firebasePushToken: user.firebasePushToken };
       next();
     } catch (error) {
       console.log("Socket Error", error);
-      return next(
-        new Error("Authentication invalid: Token verification failed")
-      );
+      return next(new Error("Authentication invalid: Token verification failed"));
     }
   });
 
@@ -33,10 +35,15 @@ const handleSocketConnection = (io) => {
 
     if (user.role === "captain") {
       socket.on("goOnDuty", (coords) => {
-        onDutyCaptains[user.id] = { socketId: socket.id, coords };
+        // Se guarda el token y demás datos en onDutyCaptains
+        onDutyCaptains[user.id] = {
+          socketId: socket.id,
+          coords,
+          userId: user.id,
+          firebasePushToken: user.firebasePushToken,
+        };
         socket.join("onDuty");
         console.log(`Captain ${user.id} is now on duty.🫡`);
-
         updateNearbyCaptains();
       });
 
@@ -44,18 +51,14 @@ const handleSocketConnection = (io) => {
         delete onDutyCaptains[user.id];
         socket.leave("onDuty");
         console.log(`Captain ${user.id} is now off duty.😪`);
-
         updateNearbyCaptains();
       });
 
-      // Update captain's location
       socket.on("updateLocation", (coords) => {
         if (onDutyCaptains[user.id]) {
           onDutyCaptains[user.id].coords = coords;
           console.log(`Captain ${user.id} updated location.`);
           updateNearbyCaptains();
-
-          // Notify subscribed users about captain's location update
           socket.to(`captain_${user.id}`).emit("captainLocationUpdate", {
             captainId: user.id,
             coords,
@@ -67,16 +70,15 @@ const handleSocketConnection = (io) => {
     if (user.role === "customer") {
       socket.on("subscribeToZone", (customerCoords) => {
         socket.user.coords = customerCoords;
-
         const nearbyCaptains = Object.values(onDutyCaptains)
           .filter((captain) =>
             geolib.isPointWithinRadius(captain.coords, customerCoords, 60000)
           )
           .map((captain) => ({
-            id: captain.socketId,
+            id: captain.userId,
             coords: captain.coords,
+            firebasePushToken: captain.firebasePushToken,
           }));
-
         socket.emit("nearbyCaptains", nearbyCaptains);
       });
 
@@ -90,6 +92,7 @@ const handleSocketConnection = (io) => {
 
           const { latitude: pickupLat, longitude: pickupLon } = ride.pickup;
 
+          // Función para encontrar capitanes en un radio de 6 km
           const findNearbyCaptains = () => {
             return Object.values(onDutyCaptains)
               .map((captain) => ({
@@ -99,21 +102,63 @@ const handleSocketConnection = (io) => {
                   longitude: pickupLon,
                 }),
               }))
-              .filter((captain) => captain.distance <= 60000) // 60 km radius
+              .filter((captain) => captain.distance <= 6000)
               .sort((a, b) => a.distance - b.distance);
           };
 
+          // Función para emitir los capitanes cercanos y enviar notificaciones push
           const emitNearbyCaptains = () => {
             const nearbyCaptains = findNearbyCaptains();
-            if (nearbyCaptains.length > 0) {
-              socket.emit("nearbyCaptains", nearbyCaptains);
-              nearbyCaptains.forEach((captain) => {
+            const captainsWithToken = nearbyCaptains.map((captain) => ({
+              id: captain.userId,
+              coords: captain.coords,
+              firebasePushToken: captain.firebasePushToken,
+              socketId: captain.socketId,
+              distance: captain.distance,
+            }));
+
+            // Si hay capitanes y aún no se ha enviado la notificación para este rideId
+            if (captainsWithToken.length > 0 && !rideNotificationSent[rideId]) {
+              const firebasePushTokens = captainsWithToken
+                .map((captain) => captain.firebasePushToken)
+                .filter((token) => token); // Filtramos tokens nulos o indefinidos
+
+              // Marcar que ya se envió la notificación para este rideId
+              rideNotificationSent[rideId] = true;
+
+              // Enviar la petición POST utilizando fetch (se envía solo el array de tokens) 
+              fetch("https://expressserveryt.onrender.com/send-notification", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  "title": "Solicitud de viaje",
+                  "body": "Alguien necesita un viaje, quizás es para ti",
+                  "tokens": firebasePushTokens
+                }),
+              })
+                .then((res) => res.json())
+                .then((data) => {
+                  console.log("Push notifications sent:", data);
+                })
+                .catch((error) => {
+                  console.error("Error sending push notifications:", error);
+                });
+
+            console.log("firebasePushTokens", firebasePushTokens)
+            }
+
+            // Emitir el evento socket a los capitanes
+            if (captainsWithToken.length > 0) {
+              socket.emit("nearbyCaptains", captainsWithToken);
+              captainsWithToken.forEach((captain) => {
                 socket.to(captain.socketId).emit("rideOffer", ride);
               });
             } else {
               console.log("No captains nearby, retrying...");
             }
-            return nearbyCaptains;
+            return captainsWithToken;
           };
 
           const MAX_RETRIES = 20;
@@ -148,7 +193,6 @@ const handleSocketConnection = (io) => {
           socket.on("cancelRide", async () => {
             canceled = true;
             clearInterval(retryInterval);
-
             await Ride.findByIdAndDelete(rideId);
             socket.emit("rideCanceled", {
               message: "Your ride has been canceled",
@@ -166,7 +210,6 @@ const handleSocketConnection = (io) => {
             } else {
               console.log(`No captain associated with ride ${rideId}`);
             }
-
             console.log(`Customer ${user.id} canceled the ride ${rideId}`);
           });
         } catch (error) {
@@ -176,28 +219,22 @@ const handleSocketConnection = (io) => {
       });
     }
 
-    // Subscribe to captain's location updates
     socket.on("subscribeToCaptainLocation", (captainId) => {
       const captain = onDutyCaptains[captainId];
-      console.log(onDutyCaptains, captain);
       if (captain) {
         socket.join(`captain_${captainId}`);
         socket.emit("captainLocationUpdate", {
           captainId,
           coords: captain.coords,
         });
-        console.log(
-          `User ${user.id} subscribed to Captain ${captainId}'s location.`
-        );
+        console.log(`User ${user.id} subscribed to Captain ${captainId}'s location.`);
       }
     });
 
     socket.on("subscribeRide", async (rideId) => {
       socket.join(`ride_${rideId}`);
       try {
-        const rideData = await Ride.findById(rideId).populate(
-          "customer captain"
-        );
+        const rideData = await Ride.findById(rideId).populate("customer captain");
         socket.emit("rideData", rideData);
       } catch (error) {
         socket.error("Failed to receive data");
@@ -219,17 +256,13 @@ const handleSocketConnection = (io) => {
           if (customerCoords) {
             const nearbyCaptains = Object.values(onDutyCaptains)
               .filter((captain) =>
-                geolib.isPointWithinRadius(
-                  captain.coords,
-                  customerCoords,
-                  60000
-                )
+                geolib.isPointWithinRadius(captain.coords, customerCoords, 60000)
               )
               .map((captain) => ({
-                id: captain.socketId,
+                id: captain.userId,
                 coords: captain.coords,
+                firebasePushToken: captain.firebasePushToken,
               }));
-            console.log("nearbyCaptains", nearbyCaptains)
             socket.emit("nearbyCaptains", nearbyCaptains);
           }
         }

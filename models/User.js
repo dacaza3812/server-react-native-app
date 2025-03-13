@@ -14,6 +14,11 @@ const userSchema = new Schema(
       required: true,
       unique: true,
     },
+    firebasePushToken: {
+      type: String,
+      required: true,
+      unique: true,
+    }
   },
   {
     timestamps: true,

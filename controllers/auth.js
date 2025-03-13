@@ -4,9 +4,7 @@ const { BadRequestError, UnauthenticatedError } = require("../errors");
 const jwt = require("jsonwebtoken");
 
 const auth = async (req, res) => {
-  const { phone, role } = req.body;
-
-  console.log(phone)
+  const { phone, role, firebasePushToken } = req.body;
 
   if (!phone) {
     throw new BadRequestError("Phone number is required");
@@ -38,6 +36,7 @@ const auth = async (req, res) => {
     user = new User({
       phone,
       role,
+      firebasePushToken
     });
 
     await user.save();

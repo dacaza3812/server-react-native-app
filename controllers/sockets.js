@@ -3,6 +3,7 @@ const User = require("../models/User");
 const Ride = require("../models/Ride");
 const jwt = require("jsonwebtoken");
 const admin = require('firebase-admin');
+const path = require('path');
 const serviceAccount = {
   "type": "service_account",
   "project_id": process.env.PROJECT_ID,
@@ -16,7 +17,6 @@ const serviceAccount = {
   "client_x509_cert_url": process.env.CLIENT_X509_CERT_URL,
   "universe_domain": process.env.UNIVERSE_DOMAIN,
 };
-
 
 // Inicializa Firebase Admin con la cuenta de servicio
 admin.initializeApp({

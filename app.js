@@ -43,6 +43,7 @@ app.use("/ride", authMiddleware, rideRouter);
 app.use(notFoundMiddleware);
 app.use(errorHandlerMiddleware);
 
+
 const start = async () => {
   try {
     await connectDB(process.env.MONGO_URI);

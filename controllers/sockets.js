@@ -2,6 +2,14 @@ const geolib = require("geolib");
 const User = require("../models/User");
 const Ride = require("../models/Ride");
 const jwt = require("jsonwebtoken");
+const admin = require('firebase-admin');
+const path = require('path');
+const serviceAccount = require(path.resolve(__dirname, 'rapido.json'));
+
+// Inicializa Firebase Admin con la cuenta de servicio
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
 
 // Objeto para registrar los rideId a los que ya se envió la notificación
 const rideNotificationSent = {};
@@ -107,7 +115,7 @@ const handleSocketConnection = (io) => {
           };
 
           // Función para emitir los capitanes cercanos y enviar notificaciones push
-          const emitNearbyCaptains = () => {
+          const emitNearbyCaptains = async () => {
             const nearbyCaptains = findNearbyCaptains();
             const captainsWithToken = nearbyCaptains.map((captain) => ({
               id: captain.userId,
@@ -127,6 +135,7 @@ const handleSocketConnection = (io) => {
               rideNotificationSent[rideId] = true;
 
               // Enviar la petición POST utilizando fetch (se envía solo el array de tokens) 
+/*
               fetch("https://expressserveryt.onrender.com/send-notification", {
                 method: "POST",
                 headers: {
@@ -145,8 +154,32 @@ const handleSocketConnection = (io) => {
                 .catch((error) => {
                   console.error("Error sending push notifications:", error);
                 });
+*/
+                if (!Array.isArray(firebasePushTokens) || firebasePushTokens.length === 0) {
+                  return res.status(400).json({ success: false, error: "El campo 'tokens' debe ser un array no vacío." });
+                }
 
-            console.log("firebasePushTokens", firebasePushTokens)
+              const notificationPayload = {
+                title: "Solicitud de viaje",
+                body: "Alguien necesita un viaje, quizás es para ti",
+              };
+
+              const message = {
+                notification: notificationPayload,
+                tokens: firebasePushTokens, // Array de tokens de los dispositivos a notificar
+              };
+
+
+              try {
+                const response = await admin.messaging().sendEachForMulticast(message);
+                console.log('Notificaciones enviadas:', response);
+                
+              } catch (error) {
+                console.error('Error al enviar notificaciones:', error);
+                
+              }
+
+              console.log("firebasePushTokens", firebasePushTokens)
             }
 
             // Emitir el evento socket a los capitanes

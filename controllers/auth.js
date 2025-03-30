@@ -7,7 +7,7 @@ const auth = async (req, res) => {
   const { phone, role, firebasePushToken } = req.body;
 
   if (!phone) {
-    throw new BadRequestError("Phone number is required");
+    throw new BadRequestError("Numero de telefono es requerido");
   }
 
   if (!role || !["customer", "captain"].includes(role)) {
@@ -36,7 +36,7 @@ const auth = async (req, res) => {
 
     if (user) {
       if (user.role !== role) {
-        throw new BadRequestError("Phone number and role do not match");
+        throw new BadRequestError("Usted no puede ser cliente y chofer con el mismo nuemero de telefono");
       }
 
       // Si el token recibido es diferente al almacenado, se actualiza.

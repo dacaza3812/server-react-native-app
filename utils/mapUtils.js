@@ -14,14 +14,14 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
 
 const calculateFare = (distance) => {
   const rateStructure = {
-    bike: { baseFare: 10, perKmRate: 5, minimumFare: 25 },
-    auto: { baseFare: 15, perKmRate: 7, minimumFare: 30 },
-    cabEconomy: { baseFare: 20, perKmRate: 10, minimumFare: 50 },
-    cabPremium: { baseFare: 30, perKmRate: 15, minimumFare: 70 },
-  };
+    bike: { baseFare: 100, perKmRate: 50, minimumFare: 50 },
+    auto: { baseFare: 200, perKmRate: 100, minimumFare: 100 },
+    cabEconomy: { baseFare: 200, perKmRate: 100, minimumFare: 400 },
+    cabPremium: { baseFare: 200, perKmRate: 200, minimumFare: 500 },
+};
 
   const fareCalculation = (baseFare, perKmRate, minimumFare) => {
-    const calculatedFare = baseFare + distance * perKmRate;
+    const calculatedFare = baseFare + (distance * perKmRate);
     return Math.max(calculatedFare, minimumFare);
   };
 

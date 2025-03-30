@@ -36,7 +36,7 @@ const auth = async (req, res) => {
 
     if (user) {
       if (user.role !== role) {
-        throw new BadRequestError("Phone number and role do not match");
+        throw new BadRequestError("Usted no puede ser chofer y cliente con el mismo numero");
       }
 
       // Si el token recibido es diferente al almacenado, se actualiza.

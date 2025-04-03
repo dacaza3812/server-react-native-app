@@ -13,16 +13,11 @@ const errorHandlerMiddleware = require("./middleware/error-handler");
 const authMiddleware = require("./middleware/authentication");
 
 
-setInterval(async () => {
-    const ping = await fetch("https://expressserveryt.onrender.com")
-    console.log("Server working ", ping.status)
-  
-}, 10000);
-
 // Routers
 const authRouter = require("./routes/auth");
 const rideRouter = require("./routes/ride");
 const versionRouter = require("./routes/version");
+const notificationRouter = require("./routes/notification")
 
 // Import socket handler
 const handleSocketConnection = require("./controllers/sockets");
@@ -47,6 +42,7 @@ handleSocketConnection(io);
 app.use("/auth", authRouter);
 app.use("/ride", authMiddleware, rideRouter);
 app.use("/version", versionRouter);
+app.use("/notification", notificationRouter);
 
 // Middleware
 app.use(notFoundMiddleware);

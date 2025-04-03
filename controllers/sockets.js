@@ -127,7 +127,7 @@ const handleSocketConnection = (io) => {
               rideNotificationSent[rideId] = true;
 
               // Enviar la petición POST utilizando fetch (se envía solo el array de tokens) 
-              fetch("https://expressserveryt.onrender.com/send-notification", {
+              fetch("https://server-react-native-app.onrender.com/notification", {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",

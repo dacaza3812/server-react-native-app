@@ -1,6 +1,9 @@
 require("dotenv").config();
 require("express-async-errors");
 
+const fs = require("fs");
+const path = require("path");
+
 const EventEmitter = require("events");
 EventEmitter.defaultMaxListeners = 100;
 
@@ -12,12 +15,17 @@ const notFoundMiddleware = require("./middleware/not-found");
 const errorHandlerMiddleware = require("./middleware/error-handler");
 const authMiddleware = require("./middleware/authentication");
 
+const uploadsDir = path.join(__dirname, "uploads");
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir);
+}
 
 // Routers
 const authRouter = require("./routes/auth");
 const rideRouter = require("./routes/ride");
 const versionRouter = require("./routes/version");
 const notificationRouter = require("./routes/notification")
+const bannerRouter = require("./routes/banner");
 
 // Import socket handler
 const handleSocketConnection = require("./controllers/sockets");
@@ -43,6 +51,8 @@ app.use("/auth", authRouter);
 app.use("/ride", authMiddleware, rideRouter);
 app.use("/version", versionRouter);
 app.use("/notification", notificationRouter);
+app.use("/uploads", express.static("uploads"));
+app.use("/banner", bannerRouter);
 
 // Middleware
 app.use(notFoundMiddleware);

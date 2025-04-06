@@ -14,8 +14,8 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
 
 const calculateFare = (distance) => {
   const rateStructure = {
-    bike: { baseFare: 100, perKmRate: 150, minimumFare: 150 },
-    auto: { baseFare: 200, perKmRate: 150, minimumFare: 150 },
+    bike: { baseFare: 100, perKmRate: 150, minimumFare: 200 },
+    auto: { baseFare: 200, perKmRate: 150, minimumFare: 300 },
     cabEconomy: { baseFare: 200, perKmRate: 250, minimumFare: 400 },
     cabPremium: { baseFare: 200, perKmRate: 300, minimumFare: 500 },
 };

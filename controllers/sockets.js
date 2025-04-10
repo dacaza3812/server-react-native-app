@@ -6,6 +6,9 @@ const jwt = require("jsonwebtoken");
 // Objeto para registrar los rideId a los que ya se envió la notificación
 const rideNotificationSent = {};
 
+// Nuevo mapeo: rideId -> Set de socketIDs de choferes que recibieron la oferta
+const rideToCaptains = {};
+
 const handleSocketConnection = (io) => {
   const onDutyCaptains = {};
 
@@ -20,7 +23,7 @@ const handleSocketConnection = (io) => {
       if (!user) {
         return next(new Error("Authentication invalid: User not found"));
       }
-      // Se añade la propiedad firebasePushToken al objeto de usuario
+      // Se añade la propiedad firebasePushToken y el user al socket
       socket.user = { id: payload.id, role: user.role, firebasePushToken: user.firebasePushToken };
       next();
     } catch (error) {
@@ -35,8 +38,9 @@ const handleSocketConnection = (io) => {
 
     if (user.role === "captain") {
       socket.on("goOnDuty", (coords) => {
-        // Se guarda el token y demás datos en onDutyCaptains
+        // Guardar la referencia del socket y demás información en onDutyCaptains
         onDutyCaptains[user.id] = {
+          socket: socket, // referencia directa
           socketId: socket.id,
           coords,
           userId: user.id,
@@ -106,7 +110,6 @@ const handleSocketConnection = (io) => {
               .sort((a, b) => a.distance - b.distance);
           };
 
-          // Función para emitir los capitanes cercanos y enviar notificaciones push
           const emitNearbyCaptains = () => {
             const nearbyCaptains = findNearbyCaptains();
             const captainsWithToken = nearbyCaptains.map((captain) => ({
@@ -121,21 +124,20 @@ const handleSocketConnection = (io) => {
             if (captainsWithToken.length > 0 && !rideNotificationSent[rideId]) {
               const firebasePushTokens = captainsWithToken
                 .map((captain) => captain.firebasePushToken)
-                .filter((token) => token); // Filtramos tokens nulos o indefinidos
+                .filter((token) => token);
 
               // Marcar que ya se envió la notificación para este rideId
               rideNotificationSent[rideId] = true;
 
-              // Enviar la petición POST utilizando fetch (se envía solo el array de tokens) 
               fetch("https://server-react-native-app.onrender.com/notification", {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
-                  "title": "Solicitud de viaje",
-                  "body": "Alguien necesita un viaje, quizás es para ti",
-                  "tokens": firebasePushTokens
+                  title: "Solicitud de viaje",
+                  body: "Alguien necesita un viaje, quizás es para ti",
+                  tokens: firebasePushTokens,
                 }),
               })
                 .then((res) => res.json())
@@ -146,15 +148,23 @@ const handleSocketConnection = (io) => {
                   console.error("Error sending push notifications:", error);
                 });
 
-            console.log("firebasePushTokens", firebasePushTokens)
+              console.log("firebasePushTokens", firebasePushTokens);
             }
 
-            // Emitir el evento socket a los capitanes
+            // Aquí, además de emitir el evento rideOffer,
+            // almacenamos los socketIds de los capitanes asociados al rideId
             if (captainsWithToken.length > 0) {
-              socket.emit("nearbyCaptains", captainsWithToken);
+              // Inicializar el Set si no existe
+              if (!rideToCaptains[rideId]) {
+                rideToCaptains[rideId] = new Set();
+              }
+              // Emitir la oferta a cada capitán y guardar su socketId
               captainsWithToken.forEach((captain) => {
+                rideToCaptains[rideId].add(captain.socketId);
                 socket.to(captain.socketId).emit("rideOffer", ride);
               });
+              // También emitir al cliente la lista de capitanes
+              socket.emit("nearbyCaptains", captainsWithToken);
             } else {
               console.log("No captains nearby, retrying...");
             }
@@ -190,26 +200,38 @@ const handleSocketConnection = (io) => {
             clearInterval(retryInterval);
           });
 
+          // Nueva lógica de cancelación usando rideId para notificar a los choferes
           socket.on("cancelRide", async () => {
             canceled = true;
             clearInterval(retryInterval);
-            await Ride.findByIdAndDelete(rideId);
+
+            // Notificar al cliente (quien cancela)
             socket.emit("rideCanceled", {
               message: "Your ride has been canceled",
             });
 
-            if (ride.captain) {
-              const captainSocket = getCaptainSocket(ride.captain._id);
-              if (captainSocket) {
-                captainSocket.emit("rideCanceled", {
-                  message: `The ride with customer ${user.id} has been canceled.`,
-                });
-              } else {
-                console.log(`Captain not found for ride ${rideId}`);
-              }
+            // Notificar a TODOS los choferes que hayan recibido la oferta para este rideId
+            if (rideToCaptains[rideId]) {
+              const captainSocketIds = Array.from(rideToCaptains[rideId]);
+              captainSocketIds.forEach((sId) => {
+                // Dependiendo de la versión de Socket.IO, usar .get() o acceso directo.
+                const captainSocket = io.sockets.sockets.get
+                  ? io.sockets.sockets.get(sId)
+                  : io.sockets.sockets[sId];
+                if (captainSocket) {
+                  captainSocket.emit("rideCanceled", {
+                    message: `The ride with customer ${user.id} has been canceled.`,
+                  });
+                }
+              });
+              // Limpiar el mapeo para este rideId
+              delete rideToCaptains[rideId];
             } else {
               console.log(`No captain associated with ride ${rideId}`);
             }
+
+            // Finalmente, eliminar el ride de la base de datos
+            await Ride.findByIdAndDelete(rideId);
             console.log(`Customer ${user.id} canceled the ride ${rideId}`);
           });
         } catch (error) {
@@ -267,13 +289,6 @@ const handleSocketConnection = (io) => {
           }
         }
       });
-    }
-
-    function getCaptainSocket(captainId) {
-      const captain = Object.values(onDutyCaptains).find(
-        (captain) => captain.userId.toString() === captainId.toString()
-      );
-      return captain ? io.sockets.sockets.get(captain.socketId) : null;
     }
   });
 };

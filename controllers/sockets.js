@@ -38,7 +38,6 @@ const handleSocketConnection = (io) => {
 
     if (user.role === "captain") {
       socket.on("goOnDuty", (coords) => {
-        // Guardar la referencia del socket y demás información en onDutyCaptains
         onDutyCaptains[user.id] = {
           socket: socket, // referencia directa
           socketId: socket.id,
@@ -120,7 +119,6 @@ const handleSocketConnection = (io) => {
               distance: captain.distance,
             }));
 
-            // Si hay capitanes y aún no se ha enviado la notificación para este rideId
             if (captainsWithToken.length > 0 && !rideNotificationSent[rideId]) {
               const firebasePushTokens = captainsWithToken
                 .map((captain) => captain.firebasePushToken)
@@ -131,9 +129,7 @@ const handleSocketConnection = (io) => {
 
               fetch("https://server-react-native-app.onrender.com/notification", {
                 method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   title: "Solicitud de viaje",
                   body: "Alguien necesita un viaje, quizás es para ti",
@@ -151,19 +147,15 @@ const handleSocketConnection = (io) => {
               console.log("firebasePushTokens", firebasePushTokens);
             }
 
-            // Aquí, además de emitir el evento rideOffer,
-            // almacenamos los socketIds de los capitanes asociados al rideId
             if (captainsWithToken.length > 0) {
-              // Inicializar el Set si no existe
+              // Almacenar en rideToCaptains los socketIds de capitanes que recibieron la oferta
               if (!rideToCaptains[rideId]) {
                 rideToCaptains[rideId] = new Set();
               }
-              // Emitir la oferta a cada capitán y guardar su socketId
               captainsWithToken.forEach((captain) => {
                 rideToCaptains[rideId].add(captain.socketId);
                 socket.to(captain.socketId).emit("rideOffer", ride);
               });
-              // También emitir al cliente la lista de capitanes
               socket.emit("nearbyCaptains", captainsWithToken);
             } else {
               console.log("No captains nearby, retrying...");
@@ -200,46 +192,61 @@ const handleSocketConnection = (io) => {
             clearInterval(retryInterval);
           });
 
-          // Nueva lógica de cancelación usando rideId para notificar a los choferes
-          socket.on("cancelRide", async () => {
-            canceled = true;
-            clearInterval(retryInterval);
-
-            // Notificar al cliente (quien cancela)
-            socket.emit("rideCanceled", {
-              message: "Your ride has been canceled",
-            });
-
-            // Notificar a TODOS los choferes que hayan recibido la oferta para este rideId
-            if (rideToCaptains[rideId]) {
-              const captainSocketIds = Array.from(rideToCaptains[rideId]);
-              captainSocketIds.forEach((sId) => {
-                // Dependiendo de la versión de Socket.IO, usar .get() o acceso directo.
-                const captainSocket = io.sockets.sockets.get
-                  ? io.sockets.sockets.get(sId)
-                  : io.sockets.sockets[sId];
-                if (captainSocket) {
-                  captainSocket.emit("rideCanceled", {
-                    message: `The ride with customer ${user.id} has been canceled.`,
-                  });
-                }
-              });
-              // Limpiar el mapeo para este rideId
-              delete rideToCaptains[rideId];
-            } else {
-              console.log(`No captain associated with ride ${rideId}`);
-            }
-
-            // Finalmente, eliminar el ride de la base de datos
-            await Ride.findByIdAndDelete(rideId);
-            console.log(`Customer ${user.id} canceled the ride ${rideId}`);
-          });
         } catch (error) {
           console.error("Error searching for captain:", error);
           socket.emit("error", { message: "Error searching for captain" });
         }
       });
     }
+
+    // Listener unificado para cancelar el viaje (permitido para ambos roles)
+    socket.on("cancelRide", async (rideId) => {
+      try {
+        if (!rideId) {
+          socket.emit("error", { message: "Ride ID is required for cancellation." });
+          return;
+        }
+        const ride = await Ride.findById(rideId).populate("customer captain");
+        if (!ride) {
+          socket.emit("error", { message: "Ride not found" });
+          return;
+        }
+
+        // Definir el mensaje de cancelación según el rol que emite la acción.
+        let cancelMessage = "";
+        if (socket.user.role === "customer") {
+          cancelMessage = "El viaje ha sido cancelado por el cliente.";
+        } else if (socket.user.role === "captain") {
+          cancelMessage = "El viaje ha sido cancelado por el chofer.";
+        }
+
+        // Notificar a todos los sockets en la sala de este ride (usualmente el cliente que se suscribió)
+        io.in(`ride_${rideId}`).emit("rideCanceled", { message: cancelMessage });
+
+        // Notificar a todos los choferes que recibieron la oferta para este rideId.
+        if (rideToCaptains[rideId]) {
+          const captainSocketIds = Array.from(rideToCaptains[rideId]);
+          captainSocketIds.forEach((sId) => {
+            const captainSocket = io.sockets.sockets.get
+              ? io.sockets.sockets.get(sId)
+              : io.sockets.sockets[sId];
+            if (captainSocket) {
+              captainSocket.emit("rideCanceled", { message: cancelMessage });
+            }
+          });
+          delete rideToCaptains[rideId];
+        }
+        // También notificar al socket que emitió, en caso de que no esté en la sala.
+        socket.emit("rideCanceled", { message: cancelMessage });
+
+        // Finalmente, eliminar el ride de la base de datos.
+        await Ride.findByIdAndDelete(rideId);
+        console.log(`User ${socket.user.id} canceled the ride ${rideId}`);
+      } catch (error) {
+        console.error("Error canceling ride:", error);
+        socket.emit("error", { message: "Error canceling ride" });
+      }
+    });
 
     socket.on("subscribeToCaptainLocation", (captainId) => {
       const captain = onDutyCaptains[captainId];
@@ -249,7 +256,7 @@ const handleSocketConnection = (io) => {
           captainId,
           coords: captain.coords,
         });
-        console.log(`User ${user.id} subscribed to Captain ${captainId}'s location.`);
+        console.log(`User ${socket.user.id} subscribed to Captain ${captainId}'s location.`);
       }
     });
 
@@ -259,15 +266,15 @@ const handleSocketConnection = (io) => {
         const rideData = await Ride.findById(rideId).populate("customer captain");
         socket.emit("rideData", rideData);
       } catch (error) {
-        socket.error("Failed to receive data");
+        socket.emit("error", "Failed to receive data");
       }
     });
 
     socket.on("disconnect", () => {
-      if (user.role === "captain") {
-        delete onDutyCaptains[user.id];
-      } else if (user.role === "customer") {
-        console.log(`Customer ${user.id} disconnected.`);
+      if (socket.user.role === "captain") {
+        delete onDutyCaptains[socket.user.id];
+      } else if (socket.user.role === "customer") {
+        console.log(`Customer ${socket.user.id} disconnected.`);
       }
     });
 

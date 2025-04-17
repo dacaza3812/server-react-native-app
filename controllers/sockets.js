@@ -127,7 +127,7 @@ const handleSocketConnection = (io) => {
               // Marcar que ya se envió la notificación para este rideId
               rideNotificationSent[rideId] = true;
 
-              fetch("https://server-react-native-app.onrender.com/notification", {
+              fetch("https://server-react-native-app-1.onrender.com/notification", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({

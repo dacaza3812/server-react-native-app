@@ -1,10 +1,16 @@
+// controllers/User.js
 const User = require("../models/User");
 const { StatusCodes } = require("http-status-codes");
 const { BadRequestError, UnauthenticatedError } = require("../errors");
 const jwt = require("jsonwebtoken");
 
 const auth = async (req, res) => {
-  const { phone, role, firebasePushToken } = req.body;
+  const {
+    phone,
+    role,
+    firebasePushToken,
+    forceSwitch = false   // NUEVO: flag opcional para forzar cambio de rol
+  } = req.body;
 
   if (!phone) {
     throw new BadRequestError("Phone number is required");
@@ -15,15 +21,13 @@ const auth = async (req, res) => {
   }
 
   try {
-    // Si se recibe un firebasePushToken, se busca si otro usuario (con phone diferente)
-    // ya lo tiene asignado; en ese caso se "desasocia" del otro usuario.
+    // Desasocia firebasePushToken de otro usuario si es necesario
     if (firebasePushToken) {
       const userWithToken = await User.findOne({
         firebasePushToken,
         phone: { $ne: phone },
       });
       if (userWithToken) {
-        // Se actualiza el usuario anterior sin ejecutar validadores
         await User.findByIdAndUpdate(
           userWithToken._id,
           { firebasePushToken: "" },
@@ -35,16 +39,27 @@ const auth = async (req, res) => {
     let user = await User.findOne({ phone });
 
     if (user) {
+      // Si rol existente difiere...
       if (user.role !== role) {
-        throw new BadRequestError("Usted no puede ser chofer y cliente con el mismo numero");
+        if (forceSwitch) {
+          // —> forzamos el cambio de rol y guardamos
+          user.role = role;
+          await user.save();
+        } else {
+          throw new BadRequestError(
+            "Usted no puede ser chofer y cliente con el mismo número. " +
+            "Reenvíe la petición con forceSwitch=true para confirmar cambio de perfil."
+          );
+        }
       }
 
-      // Si el token recibido es diferente al almacenado, se actualiza.
+      // Actualizamos firebasePushToken si cambió
       if (firebasePushToken && firebasePushToken !== user.firebasePushToken) {
         user.firebasePushToken = firebasePushToken;
         await user.save();
       }
 
+      // Generamos tokens
       const accessToken = user.createAccessToken();
       const refreshToken = user.createRefreshToken();
 
@@ -56,13 +71,8 @@ const auth = async (req, res) => {
       });
     }
 
-    // Si el usuario no existe, se crea uno nuevo con el token recibido
-    user = new User({
-      phone,
-      role,
-      firebasePushToken,
-    });
-
+    // Si no existe, creamos nuevo usuario
+    user = new User({ phone, role, firebasePushToken });
     await user.save();
 
     const accessToken = user.createAccessToken();
@@ -111,6 +121,6 @@ const refreshToken = async (req, res) => {
 };
 
 module.exports = {
-  refreshToken,
   auth,
+  refreshToken,
 };

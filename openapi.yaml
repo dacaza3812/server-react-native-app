@@ -1,0 +1,2474 @@
+openapi: 3.0.3
+info:
+  title: Rapido API
+  description: API para aplicación de transporte y delivery. Soporta autenticación de usuarios, gestión de viajes, entregas, tiendas y productos.
+  version: 1.0.0
+  contact:
+    name: Rapido API Support
+
+servers:
+  - url: http://localhost:3000
+    description: Servidor de desarrollo local
+  - url: https://api.rapido.com
+    description: Servidor de producción
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ==================== AUTH ====================
+  /auth/signin:
+    post:
+      summary: Autenticar usuario
+      description: Inicia sesión o crea un nuevo usuario. Si el usuario existe pero el rol es diferente, requiere forceSwitch=true para cambiar de rol.
+      tags:
+        - Autenticación
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone
+                - role
+              properties:
+                phone:
+                  type: string
+                  description: Número de teléfono del usuario
+                  example: "+521234567890"
+                role:
+                  type: string
+                  enum: [customer, captain]
+                  description: Rol del usuario (cliente o chofer)
+                  example: customer
+                firebasePushToken:
+                  type: string
+                  description: Token de Firebase para notificaciones push
+                  example: "fcm_token_123"
+                forceSwitch:
+                  type: boolean
+                  description: Forzar cambio de rol si ya existe con rol diferente
+                  default: false
+      responses:
+        200:
+          description: Usuario autenticado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "User logged in successfully"
+                  user:
+                    $ref: '#/components/schemas/User'
+                  access_token:
+                    type: string
+                    example: "eyJhbGciOiJIUzI1NiIs..."
+                  refresh_token:
+                    type: string
+                    example: "eyJhbGciOiJIUzI1NiIs..."
+        201:
+          description: Usuario creado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "User created successfully"
+                  user:
+                    $ref: '#/components/schemas/User'
+                  access_token:
+                    type: string
+                  refresh_token:
+                    type: string
+        400:
+          description: Error en la solicitud
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/refresh-token:
+    post:
+      summary: Refrescar token de acceso
+      description: Genera nuevos tokens de acceso usando un refresh token válido
+      tags:
+        - Autenticación
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+                  description: Refresh token válido
+      responses:
+        200:
+          description: Tokens refrescados exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  refresh_token:
+                    type: string
+        401:
+          description: Token inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ==================== RIDES ====================
+  /ride/create:
+    post:
+      summary: Crear un nuevo viaje
+      description: Crea un viaje para que un chofer lo acepte. Calcula automáticamente la distancia y tarifa.
+      tags:
+        - Viajes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - vehicle
+                - pickup
+                - drop
+              properties:
+                vehicle:
+                  type: string
+                  enum: [bike, auto, cabEconomy, cabPremium]
+                  description: Tipo de vehículo solicitado
+                pickup:
+                  type: object
+                  required:
+                    - address
+                    - latitude
+                    - longitude
+                  properties:
+                    address:
+                      type: string
+                      description: Dirección de recogida
+                    latitude:
+                      type: number
+                      description: Latitud de recogida
+                    longitude:
+                      type: number
+                      description: Longitud de recogida
+                drop:
+                  type: object
+                  required:
+                    - address
+                    - latitude
+                    - longitude
+                  properties:
+                    address:
+                      type: string
+                      description: Dirección de destino
+                    latitude:
+                      type: number
+                      description: Latitud de destino
+                    longitude:
+                      type: number
+                      description: Longitud de destino
+      responses:
+        201:
+          description: Viaje creado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Ride created successfully"
+                  ride:
+                    $ref: '#/components/schemas/Ride'
+
+  /ride/accept/{rideId}:
+    patch:
+      summary: Aceptar un viaje
+      description: Un chofer acepta un viaje disponible
+      tags:
+        - Viajes
+      parameters:
+        - name: rideId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID del viaje a aceptar
+      responses:
+        200:
+          description: Viaje aceptado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Ride accepted successfully"
+                  ride:
+                    $ref: '#/components/schemas/Ride'
+
+  /ride/update/{rideId}:
+    patch:
+      summary: Actualizar estado del viaje
+      description: Actualiza el estado de un viaje (START, ARRIVED, COMPLETED)
+      tags:
+        - Viajes
+      parameters:
+        - name: rideId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum: [START, ARRIVED, COMPLETED]
+                  description: Nuevo estado del viaje
+      responses:
+        200:
+          description: Estado actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  ride:
+                    $ref: '#/components/schemas/Ride'
+
+  /ride/rides:
+    get:
+      summary: Obtener mis viajes
+      description: Obtiene todos los viajes del usuario autenticado (como cliente o chofer)
+      tags:
+        - Viajes
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [SEARCHING_FOR_CAPTAIN, START, ARRIVED, COMPLETED]
+          description: Filtrar por estado
+      responses:
+        200:
+          description: Lista de viajes obtenida exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  count:
+                    type: integer
+                  rides:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Ride'
+
+  # ==================== DELIVERIES ====================
+  /delivery/create:
+    post:
+      summary: Crear una orden de entrega
+      description: Crea una orden de entrega de productos desde una tienda
+      tags:
+        - Entregas
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - storeId
+                - items
+                - deliveryType
+                - pickupAddress
+                - deliveryAddress
+              properties:
+                storeId:
+                  type: string
+                  description: ID de la tienda
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      productId:
+                        type: string
+                      quantity:
+                        type: integer
+                        minimum: 1
+                deliveryType:
+                  type: string
+                  enum: [PICKUP_FROM_STORE, HOME_DELIVERY]
+                  description: Tipo de entrega
+                pickupAddress:
+                  type: object
+                  properties:
+                    street:
+                      type: string
+                    city:
+                      type: string
+                    state:
+                      type: string
+                    postalCode:
+                      type: string
+                    latitude:
+                      type: number
+                    longitude:
+                      type: number
+                deliveryAddress:
+                  type: object
+                  properties:
+                    street:
+                      type: string
+                    city:
+                      type: string
+                    state:
+                      type: string
+                    postalCode:
+                      type: string
+                    latitude:
+                      type: number
+                    longitude:
+                      type: number
+                    instructions:
+                      type: string
+                paymentMethod:
+                  type: string
+                  enum: [cash, card, transfer, paypal]
+      responses:
+        201:
+          description: Orden de entrega creada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Delivery order created successfully"
+                  delivery:
+                    $ref: '#/components/schemas/Delivery'
+
+  /delivery/my-deliveries:
+    get:
+      summary: Obtener mis entregas
+      description: Obtiene todas las entregas del usuario autenticado
+      tags:
+        - Entregas
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, ASSIGNED, PICKED_UP, IN_TRANSIT, DELIVERED, CANCELLED, FAILED]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        200:
+          description: Lista de entregas obtenida exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  count:
+                    type: integer
+                  total:
+                    type: integer
+                  deliveries:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Delivery'
+
+  /delivery/{deliveryId}:
+    get:
+      summary: Obtener detalle de una entrega
+      description: Obtiene los detalles completos de una entrega específica
+      tags:
+        - Entregas
+      parameters:
+        - name: deliveryId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Detalle de entrega obtenido exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  delivery:
+                    $ref: '#/components/schemas/Delivery'
+
+  /delivery/{deliveryId}/status:
+    patch:
+      summary: Actualizar estado de entrega
+      description: Actualiza el estado de una entrega
+      tags:
+        - Entregas
+      parameters:
+        - name: deliveryId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum: [PENDING, ASSIGNED, PICKED_UP, IN_TRANSIT, DELIVERED, CANCELLED, FAILED]
+                captainId:
+                  type: string
+                  description: ID del chofer (requerido cuando status es ASSIGNED)
+      responses:
+        200:
+          description: Estado actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  delivery:
+                    $ref: '#/components/schemas/Delivery'
+
+  /delivery/{deliveryId}/cancel:
+    patch:
+      summary: Cancelar entrega
+      description: Cancela una entrega que no ha sido entregada o recogida
+      tags:
+        - Entregas
+      parameters:
+        - name: deliveryId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  description: Razón de la cancelación
+      responses:
+        200:
+          description: Entrega cancelada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  delivery:
+                    $ref: '#/components/schemas/Delivery'
+
+  /delivery/{deliveryId}/rate:
+    patch:
+      summary: Calificar entrega
+      description: El cliente califica una entrega completada
+      tags:
+        - Entregas
+      parameters:
+        - name: deliveryId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - rating
+              properties:
+                rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                  description: Calificación del 1 al 5
+                review:
+                  type: string
+                  description: Comentario opcional
+      responses:
+        200:
+          description: Entrega calificada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  delivery:
+                    $ref: '#/components/schemas/Delivery'
+
+  /delivery/track/{trackingCode}:
+    get:
+      summary: Rastrear entrega
+      description: Rastrea una entrega usando su código de seguimiento (no requiere autenticación)
+      tags:
+        - Entregas
+      security: []
+      parameters:
+        - name: trackingCode
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Código de seguimiento de la entrega
+      responses:
+        200:
+          description: Información de seguimiento obtenida
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  delivery:
+                    $ref: '#/components/schemas/Delivery'
+
+  # ==================== STORES ====================
+  /store/register:
+    post:
+      summary: Registrar una tienda
+      description: Crea una nueva tienda y asigna al usuario como propietario
+      tags:
+        - Tiendas
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - address
+                - contact
+                - categories
+              properties:
+                name:
+                  type: string
+                  description: Nombre de la tienda
+                description:
+                  type: string
+                  description: Descripción de la tienda
+                address:
+                  type: object
+                  required:
+                    - street
+                    - city
+                    - state
+                    - postalCode
+                    - latitude
+                    - longitude
+                  properties:
+                    street:
+                      type: string
+                    city:
+                      type: string
+                    state:
+                      type: string
+                    postalCode:
+                      type: string
+                    latitude:
+                      type: number
+                    longitude:
+                      type: number
+                contact:
+                  type: object
+                  required:
+                    - phone
+                    - email
+                  properties:
+                    phone:
+                      type: string
+                    email:
+                      type: string
+                    website:
+                      type: string
+                businessHours:
+                  type: object
+                  properties:
+                    monday:
+                      type: object
+                      properties:
+                        open:
+                          type: string
+                          example: "09:00"
+                        close:
+                          type: string
+                          example: "18:00"
+                    tuesday:
+                      type: object
+                      properties:
+                        open:
+                          type: string
+                        close:
+                          type: string
+                    wednesday:
+                      type: object
+                      properties:
+                        open:
+                          type: string
+                        close:
+                          type: string
+                    thursday:
+                      type: object
+                      properties:
+                        open:
+                          type: string
+                        close:
+                          type: string
+                    friday:
+                      type: object
+                      properties:
+                        open:
+                          type: string
+                        close:
+                          type: string
+                    saturday:
+                      type: object
+                      properties:
+                        open:
+                          type: string
+                        close:
+                          type: string
+                    sunday:
+                      type: object
+                      properties:
+                        open:
+                          type: string
+                        close:
+                          type: string
+                categories:
+                  type: array
+                  items:
+                    type: string
+                  description: Categorías de la tienda
+                logo:
+                  type: string
+                  description: URL del logo
+                banner:
+                  type: string
+                  description: URL del banner
+                deliveryRadius:
+                  type: number
+                  default: 10000
+                  description: Radio de entrega en metros
+                averageDeliveryTime:
+                  type: number
+                  default: 30
+                  description: Tiempo promedio de entrega en minutos
+                minimumOrderAmount:
+                  type: number
+                  default: 0
+                  description: Monto mínimo de orden
+                deliveryFee:
+                  type: number
+                  default: 0
+                  description: Costo de envío
+                taxRate:
+                  type: number
+                  default: 0.16
+                  description: Tasa de impuestos (ej. 0.16 para 16% IVA)
+                paymentMethods:
+                  type: array
+                  items:
+                    type: string
+                    enum: [cash, card, transfer, paypal]
+                  default: [cash, card]
+      responses:
+        201:
+          description: Tienda creada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Store created successfully"
+                  store:
+                    $ref: '#/components/schemas/Store'
+
+  /store/my-stores:
+    get:
+      summary: Obtener mis tiendas
+      description: Obtiene todas las tiendas del usuario autenticado
+      tags:
+        - Tiendas
+      responses:
+        200:
+          description: Lista de tiendas obtenida exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  count:
+                    type: integer
+                  stores:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Store'
+
+  /store/nearby:
+    get:
+      summary: Buscar tiendas cercanas
+      description: Busca tiendas activas dentro de un radio específico
+      tags:
+        - Tiendas
+      parameters:
+        - name: latitude
+          in: query
+          required: true
+          schema:
+            type: number
+          description: Latitud de la ubicación
+        - name: longitude
+          in: query
+          required: true
+          schema:
+            type: number
+          description: Longitud de la ubicación
+        - name: radius
+          in: query
+          schema:
+            type: number
+            default: 10000
+          description: Radio de búsqueda en metros
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: Filtrar por categoría
+      responses:
+        200:
+          description: Tiendas cercanas obtenidas exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  count:
+                    type: integer
+                  stores:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/Store'
+                        - type: object
+                          properties:
+                            distance:
+                              type: number
+                              description: Distancia en metros
+
+  /store/{storeId}:
+    get:
+      summary: Obtener detalle de tienda
+      description: Obtiene los detalles completos de una tienda específica
+      tags:
+        - Tiendas
+      parameters:
+        - name: storeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Tienda obtenida exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  store:
+                    $ref: '#/components/schemas/Store'
+
+  /store/{storeId}/orders:
+    get:
+      summary: Obtener órdenes de una tienda
+      description: Obtiene todas las órdenes asociadas a una tienda específica
+      tags:
+        - Tiendas
+      parameters:
+        - name: storeId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, ASSIGNED, PICKED_UP, IN_TRANSIT, DELIVERED, CANCELLED, FAILED]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        200:
+          description: Órdenes obtenidas exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  count:
+                    type: integer
+                  total:
+                    type: integer
+                  deliveries:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Delivery'
+
+  /store/{storeId}/stats:
+    get:
+      summary: Obtener estadísticas de tienda
+      description: Obtiene estadísticas de ventas y rendimiento de una tienda
+      tags:
+        - Tiendas
+      parameters:
+        - name: storeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Estadísticas obtenidas exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  stats:
+                    type: object
+                    properties:
+                      totalOrders:
+                        type: integer
+                      completedOrders:
+                        type: integer
+                      cancelledOrders:
+                        type: integer
+                      pendingOrders:
+                        type: integer
+                      totalRevenue:
+                        type: number
+                      avgRating:
+                        type: number
+                      totalRatings:
+                        type: integer
+                      conversionRate:
+                        type: number
+
+  /store/{storeId}:
+    patch:
+      summary: Actualizar tienda
+      description: Actualiza la información de una tienda
+      tags:
+        - Tiendas
+      parameters:
+        - name: storeId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                address:
+                  type: object
+                contact:
+                  type: object
+                businessHours:
+                  type: object
+                categories:
+                  type: array
+                  items:
+                    type: string
+                logo:
+                  type: string
+                banner:
+                  type: string
+                deliveryRadius:
+                  type: number
+                averageDeliveryTime:
+                  type: number
+                minimumOrderAmount:
+                  type: number
+                deliveryFee:
+                  type: number
+                taxRate:
+                  type: number
+                paymentMethods:
+                  type: array
+                  items:
+                    type: string
+                    enum: [cash, card, transfer, paypal]
+      responses:
+        200:
+          description: Tienda actualizada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  store:
+                    $ref: '#/components/schemas/Store'
+
+  /store/{storeId}/status:
+    patch:
+      summary: Actualizar estado de tienda
+      description: Activa o desactiva una tienda
+      tags:
+        - Tiendas
+      parameters:
+        - name: storeId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - isActive
+              properties:
+                isActive:
+                  type: boolean
+                  description: Estado de la tienda (true=activa, false=inactiva)
+      responses:
+        200:
+          description: Estado actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  store:
+                    $ref: '#/components/schemas/Store'
+
+  /store/{storeId}:
+    delete:
+      summary: Eliminar tienda
+      description: Elimina una tienda (solo si no tiene órdenes activas)
+      tags:
+        - Tiendas
+      parameters:
+        - name: storeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Tienda eliminada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Store deleted successfully"
+
+  # ==================== PRODUCTS ====================
+  /product/store/{storeId}:
+    post:
+      summary: Crear producto
+      description: Crea un nuevo producto en una tienda
+      tags:
+        - Productos
+      parameters:
+        - name: storeId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - price
+                - category
+                - images
+                - thumbnail
+                - inventory
+              properties:
+                name:
+                  type: string
+                  description: Nombre del producto
+                description:
+                  type: string
+                  description: Descripción del producto
+                price:
+                  type: number
+                  minimum: 0
+                  description: Precio del producto
+                category:
+                  type: string
+                  description: Categoría del producto
+                images:
+                  type: array
+                  items:
+                    type: string
+                  description: URLs de las imágenes del producto
+                thumbnail:
+                  type: string
+                  description: URL de la imagen principal
+                weight:
+                  type: number
+                  default: 0
+                  description: Peso en kg
+                dimensions:
+                  type: object
+                  properties:
+                    length:
+                      type: number
+                      description: Longitud en cm
+                    width:
+                      type: number
+                      description: Ancho en cm
+                    height:
+                      type: number
+                      description: Altura en cm
+                inventory:
+                  type: number
+                  minimum: 0
+                  description: Cantidad en inventario
+                lowInventoryThreshold:
+                  type: number
+                  default: 10
+                  description: Umbral para alerta de inventario bajo
+                tags:
+                  type: array
+                  items:
+                    type: string
+                specifications:
+                  type: object
+                  additionalProperties: true
+                nutritionFacts:
+                  type: object
+                  properties:
+                    calories:
+                      type: number
+                    protein:
+                      type: number
+                    carbs:
+                      type: number
+                    fat:
+                      type: number
+                    fiber:
+                      type: number
+                    sugar:
+                      type: number
+                    sodium:
+                      type: number
+                allergens:
+                  type: array
+                  items:
+                    type: string
+                dietaryInfo:
+                  type: array
+                  items:
+                    type: string
+                    enum: [vegetarian, vegan, gluten-free, dairy-free, nut-free, organic]
+                discount:
+                  type: number
+                  minimum: 0
+                  maximum: 100
+                  description: Porcentaje de descuento
+                discountValidUntil:
+                  type: string
+                  format: date-time
+                  description: Fecha de expiración del descuento
+      responses:
+        201:
+          description: Producto creado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Product created successfully"
+                  product:
+                    $ref: '#/components/schemas/Product'
+
+  /product/store/{storeId}:
+    get:
+      summary: Obtener productos de una tienda
+      description: Obtiene todos los productos de una tienda específica
+      tags:
+        - Productos
+      parameters:
+        - name: storeId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: Filtrar por categoría
+        - name: featured
+          in: query
+          schema:
+            type: boolean
+          description: Filtrar productos destacados
+        - name: available
+          in: query
+          schema:
+            type: boolean
+          description: Filtrar por disponibilidad
+        - name: active
+          in: query
+          schema:
+            type: boolean
+          description: Filtrar por estado activo
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        200:
+          description: Productos obtenidos exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  count:
+                    type: integer
+                  total:
+                    type: integer
+                  products:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+
+  /product/search:
+    get:
+      summary: Buscar productos
+      description: Busca productos por texto o categoría
+      tags:
+        - Productos
+      parameters:
+        - name: query
+          in: query
+          schema:
+            type: string
+          description: Texto de búsqueda
+        - name: category
+          in: query
+          schema:
+            type: string
+          description: Categoría para filtrar
+        - name: storeId
+          in: query
+          schema:
+            type: string
+          description: ID de tienda específica
+        - name: latitude
+          in: query
+          schema:
+            type: number
+          description: Latitud para búsqueda por ubicación
+        - name: longitude
+          in: query
+          schema:
+            type: number
+          description: Longitud para búsqueda por ubicación
+        - name: radius
+          in: query
+          schema:
+            type: number
+            default: 10000
+          description: Radio de búsqueda en metros
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        200:
+          description: Búsqueda completada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  count:
+                    type: integer
+                  total:
+                    type: integer
+                  products:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/Product'
+                        - type: object
+                          properties:
+                            distance:
+                              type: number
+
+  /product/featured:
+    get:
+      summary: Obtener productos destacados
+      description: Obtiene productos destacados disponibles
+      tags:
+        - Productos
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        200:
+          description: Productos destacados obtenidos exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  count:
+                    type: integer
+                  products:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+
+  /product/{productId}:
+    get:
+      summary: Obtener detalle de producto
+      description: Obtiene los detalles completos de un producto específico
+      tags:
+        - Productos
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Producto obtenido exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  product:
+                    $ref: '#/components/schemas/Product'
+
+  /product/store/{storeId}/low-inventory:
+    get:
+      summary: Obtener productos con inventario bajo
+      description: Obtiene productos cuyo inventario está por debajo del umbral configurado
+      tags:
+        - Productos
+      parameters:
+        - name: storeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Productos con inventario bajo obtenidos
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  count:
+                    type: integer
+                  products:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+
+  /product/{productId}:
+    patch:
+      summary: Actualizar producto
+      description: Actualiza la información de un producto
+      tags:
+        - Productos
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                price:
+                  type: number
+                category:
+                  type: string
+                images:
+                  type: array
+                  items:
+                    type: string
+                thumbnail:
+                  type: string
+                weight:
+                  type: number
+                dimensions:
+                  type: object
+                inventory:
+                  type: number
+                lowInventoryThreshold:
+                  type: number
+                isAvailable:
+                  type: boolean
+                isActive:
+                  type: boolean
+                tags:
+                  type: array
+                  items:
+                    type: string
+                specifications:
+                  type: object
+                nutritionFacts:
+                  type: object
+                allergens:
+                  type: array
+                  items:
+                    type: string
+                dietaryInfo:
+                  type: array
+                  items:
+                    type: string
+                    enum: [vegetarian, vegan, gluten-free, dairy-free, nut-free, organic]
+                featured:
+                  type: boolean
+                discount:
+                  type: number
+                discountValidUntil:
+                  type: string
+                  format: date-time
+      responses:
+        200:
+          description: Producto actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  product:
+                    $ref: '#/components/schemas/Product'
+
+  /product/{productId}/inventory:
+    patch:
+      summary: Actualizar inventario
+      description: Actualiza el inventario de un producto
+      tags:
+        - Productos
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - quantity
+              properties:
+                quantity:
+                  type: number
+                  description: Cantidad a establecer, agregar o restar
+                operation:
+                  type: string
+                  enum: [set, add, subtract]
+                  default: set
+                  description: Tipo de operación
+      responses:
+        200:
+          description: Inventario actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  product:
+                    $ref: '#/components/schemas/Product'
+
+  /product/{productId}:
+    delete:
+      summary: Eliminar producto
+      description: Elimina un producto de una tienda
+      tags:
+        - Productos
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Producto eliminado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Product deleted successfully"
+
+  # ==================== BANNERS ====================
+  /banner:
+    get:
+      summary: Obtener todos los banners
+      description: Obtiene la lista de todos los banners disponibles
+      tags:
+        - Banners
+      security: []
+      responses:
+        200:
+          description: Banners obtenidos exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Banners recuperados exitosamente."
+                  banners:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Banner'
+
+  /banner:
+    post:
+      summary: Crear banner
+      description: Crea un nuevo banner con imagen (requiere subida de archivo multipart/form-data)
+      tags:
+        - Banners
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - image
+                - title
+                - targetCity
+              properties:
+                image:
+                  type: string
+                  format: binary
+                  description: Archivo de imagen del banner
+                title:
+                  type: string
+                  description: Título del banner
+                description:
+                  type: string
+                  description: Descripción del banner
+                link:
+                  type: string
+                  description: URL de redirección
+                targetCity:
+                  type: array
+                  items:
+                    type: string
+                  description: Ciudades objetivo (puede ser string o array JSON)
+      responses:
+        201:
+          description: Banner creado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Banner creado exitosamente."
+                  banner:
+                    $ref: '#/components/schemas/Banner'
+
+  /banner/by-city:
+    post:
+      summary: Obtener banners por ciudad
+      description: Obtiene banners filtrados por ciudades específicas
+      tags:
+        - Banners
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - cities
+              properties:
+                cities:
+                  type: array
+                  items:
+                    type: string
+                  description: Lista de ciudades para filtrar
+                  example: ["Ciudad de México", "Guadalajara"]
+      responses:
+        200:
+          description: Banners filtrados obtenidos exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Banners filtrados por ciudades recuperados exitosamente."
+                  banners:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Banner'
+
+  /banner/{id}:
+    delete:
+      summary: Eliminar banner
+      description: Elimina un banner específico
+      tags:
+        - Banners
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID del banner a eliminar
+      responses:
+        200:
+          description: Banner eliminado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Banner eliminado exitosamente"
+                  deletedId:
+                    type: string
+
+  # ==================== VERSION ====================
+  /version:
+    get:
+      summary: Obtener versión de la app
+      description: Obtiene la última versión registrada de la aplicación
+      tags:
+        - Versión
+      security: []
+      responses:
+        200:
+          description: Versión obtenida exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Versión recuperada exitosamente"
+                  version:
+                    $ref: '#/components/schemas/Version'
+        404:
+          description: No se encontraron versiones
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "No se encontraron registros de versiones en la base de datos."
+
+  /version:
+    post:
+      summary: Crear nueva versión
+      description: Crea un nuevo registro de versión (requiere credenciales de admin)
+      tags:
+        - Versión
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - version
+                - user
+                - password
+              properties:
+                version:
+                  type: string
+                  description: Número de versión
+                  example: "1.2.3"
+                user:
+                  type: string
+                  description: Usuario administrador
+                password:
+                  type: string
+                  description: Contraseña de administrador
+      responses:
+        201:
+          description: Versión creada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Versión creada exitosamente"
+                  version:
+                    $ref: '#/components/schemas/Version'
+        400:
+          description: Campos obligatorios faltantes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        403:
+          description: Acceso denegado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ==================== NOTIFICATIONS ====================
+  /notification:
+    post:
+      summary: Enviar notificación push
+      description: Envía notificaciones push a múltiples dispositivos usando Firebase
+      tags:
+        - Notificaciones
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - tokens
+                - title
+                - body
+              properties:
+                tokens:
+                  type: array
+                  items:
+                    type: string
+                  description: Array de tokens FCM de los dispositivos
+                  minItems: 1
+                title:
+                  type: string
+                  description: Título de la notificación
+                body:
+                  type: string
+                  description: Cuerpo de la notificación
+      responses:
+        200:
+          description: Notificaciones enviadas exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  response:
+                    type: object
+        400:
+          description: Error en la solicitud
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  error:
+                    type: string
+        500:
+          description: Error interno del servidor
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: false
+                  error:
+                    type: object
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token JWT de autenticación. Obtén el token usando /auth/signin
+
+  schemas:
+    # ==================== USER SCHEMA ====================
+    User:
+      type: object
+      properties:
+        _id:
+          type: string
+          description: ID único del usuario
+        role:
+          type: string
+          enum: [customer, captain, store_owner]
+          description: Rol del usuario
+        phone:
+          type: string
+          description: Número de teléfono
+        firebasePushToken:
+          type: string
+          description: Token para notificaciones push
+        stores:
+          type: array
+          items:
+            type: string
+          description: IDs de tiendas (para store_owner)
+        addresses:
+          type: array
+          items:
+            type: object
+            properties:
+              street:
+                type: string
+              city:
+                type: string
+              state:
+                type: string
+              country:
+                type: string
+                default: "MX"
+              postalCode:
+                type: string
+              latitude:
+                type: number
+              longitude:
+                type: number
+              isDefault:
+                type: boolean
+              label:
+                type: string
+        deliveryPreferences:
+          type: object
+          properties:
+            defaultAddress:
+              type: object
+            preferredContact:
+              type: string
+              enum: [phone, email]
+            instructions:
+              type: string
+            tipPercentage:
+              type: number
+        vehicle:
+          type: object
+          properties:
+            type:
+              type: string
+              enum: [bike, auto, car]
+            licensePlate:
+              type: string
+            color:
+              type: string
+            model:
+              type: string
+        profile:
+          type: object
+          properties:
+            name:
+              type: string
+            email:
+              type: string
+            avatar:
+              type: string
+            dateOfBirth:
+              type: string
+              format: date
+            gender:
+              type: string
+              enum: [male, female, other, prefer_not_to_say]
+        isVerified:
+          type: boolean
+        verificationDocuments:
+          type: array
+          items:
+            type: string
+        rating:
+          type: object
+          properties:
+            average:
+              type: number
+              minimum: 0
+              maximum: 5
+            total:
+              type: integer
+        statistics:
+          type: object
+          properties:
+            totalRides:
+              type: integer
+            totalDeliveries:
+              type: integer
+            totalEarnings:
+              type: number
+            totalHours:
+              type: number
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    # ==================== RIDE SCHEMA ====================
+    Ride:
+      type: object
+      properties:
+        _id:
+          type: string
+        vehicle:
+          type: string
+          enum: [bike, auto, cabEconomy, cabPremium]
+        distance:
+          type: number
+          description: Distancia en kilómetros
+        pickup:
+          type: object
+          properties:
+            address:
+              type: string
+            latitude:
+              type: number
+            longitude:
+              type: number
+        drop:
+          type: object
+          properties:
+            address:
+              type: string
+            latitude:
+              type: number
+            longitude:
+              type: number
+        fare:
+          type: number
+          description: Tarifa calculada
+        customer:
+          type: string
+          description: ID del cliente
+        captain:
+          type: string
+          description: ID del chofer (null si no asignado)
+        status:
+          type: string
+          enum: [SEARCHING_FOR_CAPTAIN, START, ARRIVED, COMPLETED]
+        otp:
+          type: string
+          description: Código OTP para verificación
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    # ==================== DELIVERY SCHEMA ====================
+    Delivery:
+      type: object
+      properties:
+        _id:
+          type: string
+        deliveryType:
+          type: string
+          enum: [PICKUP_FROM_STORE, HOME_DELIVERY]
+        orderNumber:
+          type: string
+          description: Número único de orden
+        store:
+          type: string
+          description: ID de la tienda
+        customer:
+          type: string
+          description: ID del cliente
+        captain:
+          type: string
+          description: ID del chofer
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              product:
+                type: string
+              name:
+                type: string
+              price:
+                type: number
+              quantity:
+                type: integer
+              subtotal:
+                type: number
+              notes:
+                type: string
+        pickup:
+          type: object
+          properties:
+            address:
+              type: object
+            latitude:
+              type: number
+            longitude:
+              type: number
+            instructions:
+              type: string
+            estimatedTime:
+              type: string
+              format: date-time
+            actualTime:
+              type: string
+              format: date-time
+        delivery:
+          type: object
+          properties:
+            address:
+              type: object
+            latitude:
+              type: number
+            longitude:
+              type: number
+            instructions:
+              type: string
+            estimatedTime:
+              type: string
+              format: date-time
+            actualTime:
+              type: string
+              format: date-time
+        pricing:
+          type: object
+          properties:
+            subtotal:
+              type: number
+            tax:
+              type: number
+            deliveryFee:
+              type: number
+            tip:
+              type: number
+            total:
+              type: number
+            discount:
+              type: number
+            currency:
+              type: string
+              default: "MXN"
+        status:
+          type: string
+          enum: [PENDING, ASSIGNED, PICKED_UP, IN_TRANSIT, DELIVERED, CANCELLED, FAILED]
+        paymentStatus:
+          type: string
+          enum: [PENDING, PAID, FAILED, REFUNDED]
+        paymentMethod:
+          type: string
+          enum: [cash, card, transfer, paypal]
+        trackingCode:
+          type: string
+          description: Código de seguimiento público
+        otp:
+          type: string
+        deliveryDistance:
+          type: number
+        deliveryDuration:
+          type: number
+          description: Duración en minutos
+        rating:
+          type: number
+          minimum: 1
+          maximum: 5
+        review:
+          type: string
+        cancellationReason:
+          type: string
+        cancelledBy:
+          type: string
+          enum: [customer, captain, store, system]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    # ==================== STORE SCHEMA ====================
+    Store:
+      type: object
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        address:
+          type: object
+          properties:
+            street:
+              type: string
+            city:
+              type: string
+            state:
+              type: string
+            country:
+              type: string
+              default: "MX"
+            postalCode:
+              type: string
+            latitude:
+              type: number
+            longitude:
+              type: number
+        contact:
+          type: object
+          properties:
+            phone:
+              type: string
+            email:
+              type: string
+            website:
+              type: string
+        businessHours:
+          type: object
+          properties:
+            monday:
+              type: object
+            tuesday:
+              type: object
+            wednesday:
+              type: object
+            thursday:
+              type: object
+            friday:
+              type: object
+            saturday:
+              type: object
+            sunday:
+              type: object
+        categories:
+          type: array
+          items:
+            type: string
+        logo:
+          type: string
+        banner:
+          type: string
+        isActive:
+          type: boolean
+          default: true
+        deliveryRadius:
+          type: number
+          default: 10000
+        averageDeliveryTime:
+          type: number
+          default: 30
+        minimumOrderAmount:
+          type: number
+          default: 0
+        deliveryFee:
+          type: number
+          default: 0
+        taxRate:
+          type: number
+          default: 0.16
+        paymentMethods:
+          type: array
+          items:
+            type: string
+            enum: [cash, card, transfer, paypal]
+        owner:
+          type: string
+          description: ID del propietario
+        ratings:
+          type: object
+          properties:
+            average:
+              type: number
+              minimum: 0
+              maximum: 5
+            total:
+              type: integer
+        totalOrders:
+          type: integer
+          default: 0
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    # ==================== PRODUCT SCHEMA ====================
+    Product:
+      type: object
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+          minimum: 0
+        currency:
+          type: string
+          default: "MXN"
+        category:
+          type: string
+        store:
+          type: string
+          description: ID de la tienda
+        images:
+          type: array
+          items:
+            type: string
+        thumbnail:
+          type: string
+        weight:
+          type: number
+          default: 0
+        dimensions:
+          type: object
+          properties:
+            length:
+              type: number
+            width:
+              type: number
+            height:
+              type: number
+        inventory:
+          type: number
+          minimum: 0
+        lowInventoryThreshold:
+          type: number
+          default: 10
+        isAvailable:
+          type: boolean
+          default: true
+        isActive:
+          type: boolean
+          default: true
+        tags:
+          type: array
+          items:
+            type: string
+        specifications:
+          type: object
+          additionalProperties: true
+        nutritionFacts:
+          type: object
+          properties:
+            calories:
+              type: number
+            protein:
+              type: number
+            carbs:
+              type: number
+            fat:
+              type: number
+            fiber:
+              type: number
+            sugar:
+              type: number
+            sodium:
+              type: number
+        allergens:
+          type: array
+          items:
+            type: string
+        dietaryInfo:
+          type: array
+          items:
+            type: string
+            enum: [vegetarian, vegan, gluten-free, dairy-free, nut-free, organic]
+        rating:
+          type: object
+          properties:
+            average:
+              type: number
+              minimum: 0
+              maximum: 5
+            total:
+              type: integer
+        salesCount:
+          type: integer
+          default: 0
+        featured:
+          type: boolean
+          default: false
+        discount:
+          type: number
+          minimum: 0
+          maximum: 100
+        discountValidUntil:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    # ==================== BANNER SCHEMA ====================
+    Banner:
+      type: object
+      properties:
+        _id:
+          type: string
+        imageUrl:
+          type: string
+          description: URL de la imagen en Cloudinary
+        title:
+          type: string
+        description:
+          type: string
+        link:
+          type: string
+          description: URL de redirección
+        targetCity:
+          type: array
+          items:
+            type: string
+          description: Ciudades donde se muestra el banner
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    # ==================== VERSION SCHEMA ====================
+    Version:
+      type: object
+      properties:
+        _id:
+          type: string
+        version:
+          type: string
+          description: Número de versión de la aplicación
+          example: "1.2.3"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    # ==================== ERROR SCHEMA ====================
+    Error:
+      type: object
+      properties:
+        msg:
+          type: string
+          description: Mensaje de error
+        error:
+          type: string
+          description: Detalle del error (opcional)
+
+  # ==================== WEBSOCKET EVENTS (Documentación) ====================
+  # Los eventos de WebSocket se documentan aquí para referencia
+  # Aunque no son endpoints HTTP, es útil documentarlos
+
+  # Eventos disponibles en Socket.IO:
+  # - connection: Conexión inicial
+  # - rideUpdate: Actualización de estado de viaje
+  # - rideAccepted: Viaje aceptado por chofer
+  # - deliveryUpdate: Actualización de estado de entrega
+  # - deliveryCancelled: Entrega cancelada
+  # - joinRoom: Unirse a sala específica (ride_{id} o delivery_{id})
+  # - leaveRoom: Salir de sala
+  # - locationUpdate: Actualización de ubicación del chofer
+
+  # Ejemplo de uso WebSocket:
+  # const socket = io('ws://localhost:3000');
+  # socket.emit('joinRoom', 'ride_123');
+  # socket.on('rideUpdate', (ride) => {
+  #   console.log('Ride updated:', ride);
+  # });
+
+tags:
+  - name: Autenticación
+    description: Endpoints para autenticación y gestión de tokens
+  - name: Viajes
+    description: Gestión de viajes y transporte
+  - name: Entregas
+    description: Gestión de órdenes de entrega
+  - name: Tiendas
+    description: Gestión de tiendas y comercios
+  - name: Productos
+    description: Gestión de productos e inventario
+  - name: Banners
+    description: Gestión de banners publicitarios
+  - name: Versión
+    description: Control de versiones de la aplicación
+  - name: Notificaciones
+    description: Envío de notificaciones push

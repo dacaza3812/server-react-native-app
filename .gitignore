@@ -5,3 +5,17 @@ npm-debug.log
 yarn-error.log
 *.png
 *.jpeg
+
+# Testing & Coverage
+coverage/
+*.log
+
+# IDE & OS
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Misc
+nul
+*.tmp

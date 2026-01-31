@@ -198,6 +198,9 @@ const getDeliveryById = async (req, res) => {
     });
   } catch (error) {
     console.error("Error retrieving delivery:", error);
+    if (error.name === 'CastError') {
+      throw new NotFoundError("Delivery not found");
+    }
     throw new BadRequestError("Failed to retrieve delivery");
   }
 };

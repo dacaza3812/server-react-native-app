@@ -77,6 +77,10 @@ const createProduct = async (req, res) => {
     });
   } catch (error) {
     console.error("Error creating product:", error);
+    // Re-throw custom errors as-is
+    if (error.name === 'NotFoundError' || error.name === 'BadRequestError') {
+      throw error;
+    }
     throw new BadRequestError("Failed to create product");
   }
 };
@@ -215,6 +219,13 @@ const getProductById = async (req, res) => {
     });
   } catch (error) {
     console.error("Error retrieving product:", error);
+    if (error.name === 'CastError') {
+      throw new NotFoundError("Product not found");
+    }
+    // Re-throw custom errors as-is
+    if (error.name === 'NotFoundError' || error.name === 'BadRequestError') {
+      throw error;
+    }
     throw new BadRequestError("Failed to retrieve product");
   }
 };

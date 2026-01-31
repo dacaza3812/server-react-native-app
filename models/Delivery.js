@@ -38,7 +38,7 @@ const deliverySchema = new mongoose.Schema({
   orderNumber: {
     type: String,
     unique: true,
-    required: true,
+    required: false,
   },
   store: {
     type: mongoose.Schema.Types.ObjectId,
@@ -186,7 +186,7 @@ const deliverySchema = new mongoose.Schema({
   },
   cancelledBy: {
     type: String,
-    enum: ["customer", "captain", "store", "system"],
+    enum: ["customer", "captain", "store", "system", ""],
     default: "",
   },
   updatedAt: {

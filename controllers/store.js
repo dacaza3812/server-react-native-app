@@ -107,6 +107,9 @@ const getStoreById = async (req, res) => {
     });
   } catch (error) {
     console.error("Error retrieving store:", error);
+    if (error.name === 'CastError') {
+      throw new NotFoundError("Store not found");
+    }
     throw new BadRequestError("Failed to retrieve store");
   }
 };

@@ -26,6 +26,9 @@ const rideRouter = require("./routes/ride");
 const versionRouter = require("./routes/version");
 const notificationRouter = require("./routes/notification")
 const bannerRouter = require("./routes/banner");
+const deliveryRouter = require("./routes/delivery");
+const storeRouter = require("./routes/store");
+const productRouter = require("./routes/product");
 
 // Import socket handler
 const handleSocketConnection = require("./controllers/sockets");
@@ -49,6 +52,9 @@ handleSocketConnection(io);
 // Routes
 app.use("/auth", authRouter);
 app.use("/ride", authMiddleware, rideRouter);
+app.use("/delivery", deliveryRouter);
+app.use("/store", storeRouter);
+app.use("/product", productRouter);
 app.use("/version", versionRouter);
 app.use("/notification", notificationRouter);
 app.use("/uploads", express.static("uploads"));
@@ -78,4 +84,10 @@ const start = async () => {
   }
 };
 
-start();
+// Export app for testing
+module.exports = app;
+
+// Start server only if not in test environment
+if (process.env.NODE_ENV !== 'test') {
+  start();
+}

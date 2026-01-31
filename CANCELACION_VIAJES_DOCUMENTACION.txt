@@ -1,0 +1,332 @@
+# Documentación: Implementación de Cancelación de Viajes (Rides)
+
+## Overview
+Este documento describe cómo funciona la funcionalidad de cancelación de viajes en el backend, incluyendo endpoints REST, eventos WebSocket, estructura de datos y flujos de respuesta.
+
+---
+
+## 1. Endpoint REST: Cancelar Viaje
+
+### Método
+`PATCH /api/ride/:rideId/cancel`
+
+### Requisitos
+- Autenticación requerida (Bearer token)
+- El usuario debe ser el cliente o el capitán asociado al viaje
+
+### Request
+**URL Params:**
+- `rideId` (string): ID del viaje a cancelar
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+Content-Type: application/json
+```
+
+**Body (opcional):**
+```json
+{
+  "reason": "Motivo de cancelación"
+}
+```
+
+### Response Exitosa (200 OK)
+```json
+{
+  "message": "Ride cancelled successfully",
+  "ride": {
+    "_id": "string",
+    "vehicle": "bike|auto|cabEconomy|cabPremium",
+    "distance": number,
+    "pickup": {
+      "address": "string",
+      "latitude": number,
+      "longitude": number
+    },
+    "drop": {
+      "address": "string",
+      "latitude": number,
+      "longitude": number
+    },
+    "fare": number,
+    "customer": {
+      "_id": "string",
+      "name": "string",
+      "phone": "string"
+    },
+    "captain": {
+      "_id": "string",
+      "name": "string",
+      "phone": "string"
+    } | null,
+    "status": "CANCELLED",
+    "otp": "string" | null,
+    "cancellationReason": "string",
+    "cancelledBy": "string",
+    "createdAt": "ISO8601",
+    "updatedAt": "ISO8601"
+  }
+}
+```
+
+### Response de Error
+
+**400 Bad Request - Sin permisos:**
+```json
+{
+  "msg": "You don't have permission to cancel this ride"
+}
+```
+
+**400 Bad Request - Viaje completado:**
+```json
+{
+  "msg": "Cannot cancel a completed ride"
+}
+```
+
+**400 Bad Request - Ya cancelado:**
+```json
+{
+  "msg": "Ride is already cancelled"
+}
+```
+
+**404 Not Found:**
+```json
+{
+  "msg": "Ride not found"
+}
+```
+
+---
+
+## 2. WebSocket Event: rideCancelled
+
+### Evento emitido desde el servidor
+El servidor emite este evento cuando un viaje es cancelado.
+
+### Nombre del evento
+`rideCancelled` (nota: anteriormente era `rideCanceled`, se corrigió)
+
+### Payload recibido
+```json
+{
+  "ride": {
+    "_id": "string",
+    "vehicle": "string",
+    "distance": number,
+    "pickup": { "address": "string", "latitude": number, "longitude": number },
+    "drop": { "address": "string", "latitude": number, "longitude": number },
+    "fare": number,
+    "customer": { "_id": "string", "name": "string", "phone": "string" },
+    "captain": { "_id": "string", "name": "string", "phone": "string" } | null,
+    "status": "CANCELLED",
+    "otp": "string" | null,
+    "cancellationReason": "string",
+    "cancelledBy": "string",
+    "createdAt": "ISO8601",
+    "updatedAt": "ISO8601"
+  },
+  "cancelledBy": "customer|captain",
+  "message": "Ride cancelled successfully"
+}
+```
+
+### Destinatarios del evento
+- Room: `ride_{rideId}` - Todos los usuarios conectados al viaje
+- Socket individual del cliente que canceló
+- Todos los capitanes que fueron notificados del viaje (si existe en `rideToCaptains`)
+
+---
+
+## 3. Modelo Ride: Campos de Cancelación
+
+### Campos agregados para cancelación
+
+**status (enum):**
+```javascript
+enum: ["SEARCHING_FOR_CAPTAIN", "START", "ARRIVED", "COMPLETED", "CANCELLED"]
+default: "SEARCHING_FOR_CAPTAIN"
+```
+
+**cancellationReason:**
+```javascript
+type: String
+default: null
+description: Motivo de la cancelación (opcional)
+```
+
+**cancelledBy:**
+```javascript
+type: Schema.Types.ObjectId
+ref: "User"
+default: null
+description: ID del usuario que canceló el viaje
+```
+
+---
+
+## 4. Lógica de Cancelación
+
+### Validaciones aplicadas
+1. **Verificar existencia del viaje**: El viaje debe existir en la base de datos
+2. **Verificar permisos**: Solo el cliente o el capitán del viaje pueden cancelarlo
+3. **Verificar estado**: 
+   - No se puede cancelar un viaje en estado `COMPLETED`
+   - No se puede cancelar un viaje ya en estado `CANCELLED`
+
+### Proceso de cancelación (REST)
+1. Buscar el viaje por ID con population de cliente y capitán
+2. Verificar que el usuario autenticado sea cliente o capitán
+3. Verificar que el viaje no esté completado ni ya cancelado
+4. Actualizar campos:
+   - `status` → `CANCELLED`
+   - `cancelledBy` → ID del usuario actual
+   - `cancellationReason` → motivo proporcionado o string vacío
+5. Emitir evento WebSocket `rideCancelled` al room del viaje
+6. Retornar respuesta con el viaje actualizado
+
+### Proceso de cancelación (WebSocket)
+1. Recibir evento `cancelRide` con el `rideId`
+2. Buscar el viaje por ID con population de cliente y capitán
+3. Generar mensaje de cancelación según rol:
+   - customer → "El viaje ha sido cancelado por el cliente."
+   - captain → "El viaje ha sido cancelado por el chofer."
+4. Emitir `rideCanceled` (nombre antiguo) al room del viaje
+5. Notificar a capitanes en `rideToCaptains` y limpiar el registro
+6. Limpiar `rideNotificationSent[rideId]`
+7. Actualizar el viaje:
+   - `status` → `CANCELLED`
+   - `cancelledBy` → ID del usuario
+   - `cancellationReason` → string vacío
+8. Emitir confirmación al socket del cliente
+
+---
+
+## 5. Estados del Viaje (Ride Status)
+
+### Estados válidos
+- `SEARCHING_FOR_CAPTAIN`: Buscando conductor disponible
+- `START`: Viaje iniciado, conductor en camino
+- `ARRIVED`: Conductor llegó al punto de recogida
+- `COMPLETED`: Viaje finalizado
+- `CANCELLED`: Viaje cancelado (nuevo estado)
+
+### Estados que pueden ser cancelados
+- `SEARCHING_FOR_CAPTAIN` ✅
+- `START` ✅
+- `ARRIVED` ✅
+
+### Estados que NO pueden ser cancelados
+- `COMPLETED` ❌ (ya finalizado)
+- `CANCELLED` ❌ (ya cancelado)
+
+---
+
+## 6. Errores Comunes y Mensajes
+
+### Error 400: Bad Request
+- `"Ride ID is required for cancellation."` - No se proporcionó ID del viaje
+- `"Ride not found"` - El viaje no existe
+- `"You don't have permission to cancel this ride"` - Usuario no es cliente ni capitán
+- `"Cannot cancel a completed ride"` - Intento de cancelar viaje completado
+- `"Ride is already cancelled"` - Intento de cancelar viaje ya cancelado
+- `"Failed to cancel ride"` - Error genérico en cancelación
+
+### Error 404: Not Found
+- Viaje no encontrado en base de datos
+
+---
+
+## 7. Implementación en el Backend
+
+### Archivos modificados
+1. **models/Ride.js**
+   - Agregado `CANCELLED` al enum de status
+   - Agregado campo `cancellationReason`
+   - Agregado campo `cancelledBy`
+
+2. **controllers/ride.js**
+   - Import agregado: `NotFoundError`
+   - Nueva función: `cancelRide()` con lógica de cancelación REST
+   - Export agregado: `cancelRide`
+
+3. **routes/ride.js**
+   - Import agregado: `cancelRide`
+   - Nueva ruta: `router.patch("/:rideId/cancel", cancelRide)`
+
+4. **controllers/sockets/cancelHandlers.js**
+   - Modificado `handleCancelRide()`:
+     - Ahora actualiza el viaje en lugar de eliminarlo
+     - Agrega campos `status`, `cancelledBy`, `cancellationReason`
+
+---
+
+## 8. Ejemplos de Uso
+
+### Ejemplo 1: Cliente cancela viaje (REST)
+```bash
+curl -X PATCH http://localhost:3000/api/ride/678a123456789abcdef01234/cancel \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIs..." \
+  -H "Content-Type: application/json" \
+  -d '{"reason": "Ya no necesito el viaje"}'
+```
+
+**Response:**
+```json
+{
+  "message": "Ride cancelled successfully",
+  "ride": {
+    "_id": "678a123456789abcdef01234",
+    "status": "CANCELLED",
+    "cancelledBy": "678a123456789abcdef01230",
+    "cancellationReason": "Ya no necesito el viaje",
+    ...
+  }
+}
+```
+
+### Ejemplo 2: Capitán cancela viaje (WebSocket)
+**Evento emitido desde cliente:**
+```javascript
+socket.emit('cancelRide', '678a123456789abcdef01234');
+```
+
+**Eventos recibidos:**
+1. `rideCanceled` (del servidor al cliente):
+```json
+{
+  "message": "El viaje ha sido cancelado por el chofer."
+}
+```
+
+2. `rideCancelled` (broadcast al room):
+```json
+{
+  "ride": { ... },
+  "cancelledBy": "captain",
+  "message": "Ride cancelled successfully"
+}
+```
+
+---
+
+## 9. Notas Importantes para el Frontend
+
+1. **Nombre del evento WebSocket**: Usar `rideCancelled` (correcto) no `rideCanceled` (antiguo)
+2. **El viaje no se elimina**: Se mantiene en la base de datos con status `CANCELLED`
+3. **Motivo opcional**: El campo `cancellationReason` puede estar vacío o ser null
+4. **Cancelación múltiple**: Prevenir múltiples intentos de cancelación verificando el status antes de enviar la petición
+5. **UX**: Mostrar mensajes diferentes según `cancelledBy` (customer vs captain)
+6. **Historial**: Los viajes cancelados aparecen en `/api/ride/rides` con status `CANCELLED`
+
+---
+
+## 10. Referencias de Código
+
+- Controller REST: `controllers/ride.js:180-221`
+- Handler WebSocket: `controllers/sockets/cancelHandlers.js:7-48`
+- Modelo: `models/Ride.js:39-51`
+- Ruta: `routes/ride.js:20`

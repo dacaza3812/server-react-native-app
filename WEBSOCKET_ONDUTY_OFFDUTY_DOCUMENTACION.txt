@@ -1,0 +1,354 @@
+# Documentación: WebSocket - Estados On Duty / Off Duty para Capitanes
+
+## Problema Identificado
+
+**Síntoma**: Cuando un capitán marca "on duty" o "off duty" en la aplicación cliente:
+- ✅ El servidor muestra log correcto en consola
+- ❌ La UI del cliente NO muestra que el capitán está activo
+
+**Causa**: Los handlers `handleGoOnDuty` y `handleGoOffDuty` procesaban la petición correctamente (guardando/eliminando en Redis), pero **no emitían ningún evento de confirmación al socket del capitán**.
+
+---
+
+## Solución Implementada
+
+Se agregaron eventos de confirmación para que el cliente reciba respuesta sobre el cambio de estado:
+
+### Evento Enviado desde el Cliente
+
+**Ponerse en servicio:**
+```javascript
+socket.emit('goOnDuty', {
+  latitude: 19.4326,
+  longitude: -99.1332
+});
+```
+
+**Salirse de servicio:**
+```javascript
+socket.emit('goOffDuty');
+```
+
+---
+
+## Nuevos Eventos Recibidos por el Cliente
+
+### Evento: `captainStatusChanged`
+
+El servidor ahora emite este evento al socket del capitán después de procesar el cambio de estado.
+
+#### Cuando el capitán se pone ON DUTY:
+
+**Evento recibido:**
+```json
+{
+  "status": "onDuty",
+  "message": "You are now on duty"
+}
+```
+
+#### Cuando el capitán se pone OFF DUTY:
+
+**Evento recibido:**
+```json
+{
+  "status": "offDuty",
+  "message": "You are now off duty"
+}
+```
+
+---
+
+## Flujo Completo del Proceso
+
+### 1. Capitán se pone ON DUTY
+
+**Cliente → Servidor:**
+```javascript
+socket.emit('goOnDuty', { latitude, longitude })
+```
+
+**Servidor (handleGoOnDuty):**
+1. Guarda metadatos en Redis hash `drivers:meta:{captainId}`
+2. Agrega ubicación a geoset `drivers:locations`
+3. Agrega ID a set `captains:availability`
+4. Une socket al room "onDuty"
+5. **Emite confirmación al cliente** ⭐ (nuevo)
+6. Actualiza lista de capitanes cercanos para todos los customers
+7. Imprime log en consola
+
+**Servidor → Cliente:**
+```json
+{
+  "status": "onDuty",
+  "message": "You are now on duty"
+}
+```
+
+**Servidor → Customers (updateNearbyCaptains):**
+```json
+// Se emite a todos los customers conectados
+{
+  // Array de capitanes cercanos
+  [
+    {
+      "id": "captainId",
+      "coords": { "latitude": 19.4326, "longitude": -99.1332 },
+      "firebasePushToken": "...",
+      "socketId": "...",
+      "distance": 123.45
+    }
+  ]
+}
+```
+
+---
+
+### 2. Capitán se pone OFF DUTY
+
+**Cliente → Servidor:**
+```javascript
+socket.emit('goOffDuty')
+```
+
+**Servidor (handleGoOffDuty):**
+1. Elimina de geoset `drivers:locations`
+2. Elimina de set `captains:availability`
+3. Elimina hash de metadatos `drivers:meta:{captainId}`
+4. Sale del room "onDuty"
+5. **Emite confirmación al cliente** ⭐ (nuevo)
+6. Actualiza lista de capitanes cercanos para todos los customers
+7. Imprime log en consola
+
+**Servidor → Cliente:**
+```json
+{
+  "status": "offDuty",
+  "message": "You are now off duty"
+}
+```
+
+**Servidor → Customers (updateNearbyCaptains):**
+```json
+// Se emite a todos los customers conectados
+[
+  // Array de capitanes cercanos (sin el capitán que se fue off duty)
+]
+```
+
+---
+
+## Implementación en el Frontend
+
+### 1. Escuchar evento de confirmación
+
+```javascript
+useEffect(() => {
+  // Escuchar cambio de estado del capitán
+  socket.on('captainStatusChanged', (data) => {
+    console.log('Estado del capitán cambió:', data);
+    
+    // Actualizar estado local del capitán
+    setCaptainStatus(data.status); // 'onDuty' | 'offDuty'
+    
+    // Mostrar notificación o toast
+    Toast.show({
+      type: 'success',
+      text1: data.status === 'onDuty' 
+        ? '¡Estás en servicio!' 
+        : 'Has salido de servicio',
+      text2: data.message,
+    });
+  });
+
+  return () => {
+    socket.off('captainStatusChanged');
+  };
+}, [socket]);
+```
+
+### 2. Función para ponerse en servicio
+
+```javascript
+const goOnDuty = async (latitude, longitude) => {
+  try {
+    socket.emit('goOnDuty', { latitude, longitude });
+    
+    // NOTA: No usar await, la confirmación llega por WebSocket
+    // El estado se actualiza cuando llega el evento 'captainStatusChanged'
+  } catch (error) {
+    console.error('Error al ponerse en servicio:', error);
+  }
+};
+```
+
+### 3. Función para salirse de servicio
+
+```javascript
+const goOffDuty = async () => {
+  try {
+    socket.emit('goOffDuty');
+    
+    // NOTA: La confirmación llega por WebSocket
+    // El estado se actualiza cuando llega el evento 'captainStatusChanged'
+  } catch (error) {
+    console.error('Error al salirse de servicio:', error);
+  }
+};
+```
+
+### 4. Manejo de estados en la UI
+
+```javascript
+const [isOnDuty, setIsOnDuty] = useState(false);
+const [isLoading, setIsLoading] = useState(false);
+
+// Toggle de estado
+const toggleDutyStatus = async () => {
+  if (isLoading) return;
+  
+  setIsLoading(true);
+  
+  if (isOnDuty) {
+    // Salir de servicio
+    socket.emit('goOffDuty');
+  } else {
+    // Ponerse en servicio (usar ubicación actual del usuario)
+    const location = await getCurrentLocation();
+    socket.emit('goOnDuty', {
+      latitude: location.coords.latitude,
+      longitude: location.coords.longitude
+    });
+  }
+  
+  // NOTA: No actualizamos setIsOnDuty aquí
+  // Esperamos el evento 'captainStatusChanged' del servidor
+  setIsLoading(false);
+};
+
+// Componente de UI
+<TouchableOpacity
+  onPress={toggleDutyStatus}
+  disabled={isLoading}
+  style={[
+    styles.button,
+    isOnDuty ? styles.onDuty : styles.offDuty
+  ]}
+>
+  <Text style={styles.buttonText}>
+    {isOnDuty ? 'Salir de servicio' : 'Entrar en servicio'}
+  </Text>
+</TouchableOpacity>
+```
+
+---
+
+## Validaciones y Errores Potenciales
+
+### Errores que pueden ocurrir:
+
+1. **Socket no conectado:**
+   ```javascript
+   // Validar antes de emitir
+   if (!socket || !socket.connected) {
+     Toast.show({ type: 'error', text1: 'Sin conexión al servidor' });
+     return;
+   }
+   ```
+
+2. **Ubicación no disponible:**
+   ```javascript
+   const location = await getCurrentLocation();
+   if (!location) {
+     Toast.show({ type: 'error', text1: 'Ubicación no disponible' });
+     return;
+   }
+   ```
+
+3. **Timeout sin respuesta:**
+   ```javascript
+   let timeout = setTimeout(() => {
+     if (isLoading) {
+       setIsLoading(false);
+       Toast.show({ type: 'error', text1: 'Tiempo de espera agotado' });
+     }
+   }, 10000); // 10 segundos
+   ```
+
+---
+
+## Debugging Tips
+
+### 1. Verificar que el socket está conectado:
+
+```javascript
+console.log('Socket connected:', socket.connected);
+console.log('Socket ID:', socket.id);
+console.log('Socket rooms:', socket.rooms);
+```
+
+### 2. Verificar eventos del socket:
+
+```javascript
+socket.onAny((event, ...args) => {
+  console.log('Socket event:', event, args);
+});
+```
+
+### 3. Verificar que el usuario tiene rol de captain:
+
+```javascript
+// En el token JWT
+const payload = jwt.decode(token);
+console.log('User role:', payload.role); // Debe ser 'captain'
+```
+
+### 4. Verificar logs del servidor:
+
+El servidor debería imprimir:
+- `Captain {id} is now on duty.🫡`
+- `Captain {id} is now off duty.😪`
+
+Si no ves estos logs, el evento no está llegando al servidor.
+
+---
+
+## Referencias de Código
+
+### Backend:
+- **Handler On Duty**: `controllers/sockets/captainHandlers.js:7-24`
+- **Handler Off Duty**: `controllers/sockets/captainHandlers.js:29-37`
+- **Main Socket Handler**: `controllers/sockets/main.js:56-60`
+- **Update Nearby Captains**: `controllers/sockets/index.js:89-107`
+
+### Cambios Realizados:
+1. **captainHandlers.js:22**: Agregado `socket.emit("captainStatusChanged", { status: "onDuty", message: "You are now on duty" })`
+2. **captainHandlers.js:35**: Agregado `socket.emit("captainStatusChanged", { status: "offDuty", message: "You are now off duty" })`
+
+---
+
+## Resumen de Eventos WebSocket Relacionados
+
+| Evento | Dirección | Cuando se emite | Payload |
+|--------|-----------|-----------------|---------|
+| `goOnDuty` | Cliente → Servidor | Capitán se pone en servicio | `{ latitude, longitude }` |
+| `goOffDuty` | Cliente → Servidor | Capitán se sale de servicio | N/A |
+| `captainStatusChanged` | Servidor → Cliente | Confirmación de cambio de estado | `{ status, message }` |
+| `nearbyCaptains` | Servidor → Customers | Lista de capitanes cercanos actualizada | `[{ id, coords, distance, ... }]` |
+| `rideOffer` | Servidor → Capitán | Nueva oferta de viaje | `{ ride }` |
+| `deliveryOffer` | Servidor → Capitán | Nueva oferta de delivery | `{ deliveryId, delivery }` |
+
+---
+
+## Checklist para el Frontend
+
+- [ ] Escuchar evento `captainStatusChanged`
+- [ ] Actualizar estado local cuando llegue el evento
+- [ ] Mostrar notificación visual del cambio de estado
+- [ ] Validar que el socket está conectado antes de emitir
+- [ ] Obtener ubicación actual antes de `goOnDuty`
+- [ ] Manejar errores de ubicación no disponible
+- [ ] Implementar timeout por si no llega respuesta
+- [ ] Actualizar UI según estado (onDuty/offDuty)
+- [ ] Deshabilitar botón mientras espera respuesta
+- [ ] Agregar logs de debugging para eventos de socket

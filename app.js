@@ -29,6 +29,7 @@ const bannerRouter = require("./routes/banner");
 const deliveryRouter = require("./routes/delivery");
 const storeRouter = require("./routes/store");
 const productRouter = require("./routes/product");
+const apiDocsRouter = require("./routes/api-docs");
 
 // Import socket handler
 const handleSocketConnection = require("./controllers/sockets");
@@ -59,6 +60,7 @@ app.use("/version", versionRouter);
 app.use("/notification", notificationRouter);
 app.use("/uploads", express.static("uploads"));
 app.use("/banner", bannerRouter);
+app.use("/api-docs", apiDocsRouter);
 
 // Middleware
 app.use(notFoundMiddleware);

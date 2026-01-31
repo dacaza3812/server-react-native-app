@@ -1,0 +1,322 @@
+# WebSocket: On Duty / Off Duty - Referencia Rápida
+
+## Resumen
+Funcionalidad para que los capitanes (choferes) cambien su estado de disponibilidad en el sistema.
+
+---
+
+## Eventos del Cliente → Servidor
+
+### 1. goOnDuty
+**Descripción:** Capitán se pone en servicio (disponible)
+
+**Evento:**
+```javascript
+socket.emit('goOnDuty', coords)
+```
+
+**Datos enviados:**
+```json
+{
+  "latitude": 19.4326,
+  "longitude": -99.1332
+}
+```
+
+---
+
+### 2. goOffDuty
+**Descripción:** Capitán se sale de servicio (no disponible)
+
+**Evento:**
+```javascript
+socket.emit('goOffDuty')
+```
+
+**Datos enviados:**
+```javascript
+null
+```
+(No requiere parámetros)
+
+---
+
+## Eventos del Servidor → Cliente
+
+### captainStatusChanged
+**Descripción:** Confirmación del cambio de estado del capitán
+
+**Evento recibido cuando:**
+- Capitán se pone ON DUTY exitosamente
+- Capitán se pone OFF DUTY exitosamente
+
+**Payload cuando ON DUTY:**
+```json
+{
+  "status": "onDuty",
+  "message": "You are now on duty"
+}
+```
+
+**Payload cuando OFF DUTY:**
+```json
+{
+  "status": "offDuty",
+  "message": "You are now off duty"
+}
+```
+
+---
+
+## Proceso ON DUTY - Datos Flujos
+
+### 1. Cliente envía:
+```javascript
+socket.emit('goOnDuty', {
+  latitude: 19.4326,
+  longitude: -99.1332
+})
+```
+
+### 2. Servidor procesa:
+- Guarda en Redis `drivers:meta:{captainId}`:
+  - `socketId`: ID del socket actual
+  - `firebasePushToken`: Token de notificaciones push
+  - `lat`: Latitud del capitán
+  - `lng`: Longitud del capitán
+
+- Agrega a Redis geoset `drivers:locations`:
+  - Coordenadas del capitán
+
+- Agrega a Redis set `captains:availability`:
+  - ID del capitán
+
+- Une socket al room "onDuty"
+
+### 3. Servidor envía al cliente:
+```json
+{
+  "status": "onDuty",
+  "message": "You are now on duty"
+}
+```
+
+### 4. Servidor envía a customers conectados:
+```json
+[
+  {
+    "id": "captainId123",
+    "coords": {
+      "latitude": 19.4326,
+      "longitude": -99.1332
+    },
+    "firebasePushToken": "token_firebase",
+    "socketId": "socketId456",
+    "distance": 123.45
+  }
+]
+```
+Evento: `nearbyCaptains`
+
+---
+
+## Proceso OFF DUTY - Datos Flujos
+
+### 1. Cliente envía:
+```javascript
+socket.emit('goOffDuty')
+```
+
+### 2. Servidor procesa:
+- Elimina de Redis geoset `drivers:locations`
+  - ID del capitán
+
+- Elimina de Redis set `captains:availability`
+  - ID del capitán
+
+- Elimina de Redis hash `drivers:meta:{captainId}`
+
+- Sale del room "onDuty"
+
+### 3. Servidor envía al cliente:
+```json
+{
+  "status": "offDuty",
+  "message": "You are now off duty"
+}
+```
+
+### 4. Servidor envía a customers conectados:
+```json
+[
+  // Lista de capitanes cercanos (sin el capitán que se fue)
+]
+```
+Evento: `nearbyCaptains`
+
+---
+
+## Tabla de Resumen de Eventos
+
+| Evento | Dirección | Cuando se usa | Datos que envía |
+|--------|-----------|---------------|-----------------|
+| `goOnDuty` | Cliente → Servidor | Capitán se pone en servicio | `{ latitude, longitude }` |
+| `goOffDuty` | Cliente → Servidor | Capitán se sale de servicio | N/A |
+| `captainStatusChanged` | Servidor → Cliente | Confirmación de cambio | `{ status, message }` |
+| `nearbyCaptains` | Servidor → Customers | Lista de capitanes disponibles | `[{ id, coords, distance, ... }]` |
+
+---
+
+## Estructura de Datos en Redis
+
+### drivers:meta:{captainId} (Hash)
+```
+socketId: "socketIdString"
+firebasePushToken: "firebaseTokenString"
+lat: "19.4326"
+lng: "-99.1332"
+```
+
+### drivers:locations (GeoSet)
+```
+Miembro: captainId
+Coordenadas: [longitude, latitude]
+```
+
+### captains:availability (Set)
+```
+Miembros: [captainId1, captainId2, captainId3, ...]
+```
+
+---
+
+## Ejemplos de Implementación
+
+### Enviar goOnDuty desde el cliente:
+```javascript
+const goToOnDuty = () => {
+  const location = {
+    latitude: 19.4326,
+    longitude: -99.1332
+  };
+  socket.emit('goOnDuty', location);
+}
+```
+
+### Enviar goOffDuty desde el cliente:
+```javascript
+const goToOffDuty = () => {
+  socket.emit('goOffDuty');
+}
+```
+
+### Escuchar confirmación desde el servidor:
+```javascript
+socket.on('captainStatusChanged', (data) => {
+  console.log('Estado cambiado a:', data.status);
+  console.log('Mensaje:', data.message);
+  
+  if (data.status === 'onDuty') {
+    // Actualizar UI a "En servicio"
+  } else if (data.status === 'offDuty') {
+    // Actualizar UI a "Fuera de servicio"
+  }
+});
+```
+
+### Escuchar actualización de capitanes cercanos (para customers):
+```javascript
+socket.on('nearbyCaptains', (captains) => {
+  console.log('Capitanes cercanos:', captains);
+  // captains es un array con objetos:
+  // [
+  //   {
+  //     id: "captainId",
+  //     coords: { latitude, longitude },
+  //     firebasePushToken: "...",
+  //     socketId: "...",
+  //     distance: 123.45
+  //   },
+  //   ...
+  // ]
+});
+```
+
+---
+
+## Campos del Objeto Capitán (nearbyCaptains)
+
+```typescript
+interface Captain {
+  id: string;                  // ID del capitán en la base de datos
+  coords: {
+    latitude: number;          // Latitud actual del capitán
+    longitude: number;         // Longitud actual del capitán
+  };
+  firebasePushToken: string;   // Token para notificaciones push
+  socketId: string;            // ID del socket actual del capitán
+  distance: number;            // Distancia en metros del punto de búsqueda
+}
+```
+
+---
+
+## Campos del Evento captainStatusChanged
+
+```typescript
+interface CaptainStatusChanged {
+  status: 'onDuty' | 'offDuty';  // Nuevo estado del capitán
+  message: string;                // Mensaje descriptivo
+}
+```
+
+---
+
+## Estados del Capitán
+
+| Estado | Descripción | Puede recibir ofertas |
+|--------|-------------|----------------------|
+| `onDuty` | Capitán en servicio, disponible | ✅ Sí |
+| `offDuty` | Capitán fuera de servicio | ❌ No |
+
+---
+
+## Notas Importantes
+
+1. **Ubicación requerida:** `goOnDuty` siempre requiere coordenadas válidas
+2. **Sin respuesta síncrona:** No usar `await` al emitir `goOnDuty` o `goOffDuty`, la confirmación llega por WebSocket
+3. **Confirmación asíncrona:** El cliente debe escuchar el evento `captainStatusChanged` para confirmar el cambio
+4. **Actualización automática:** `nearbyCaptains` se envía automáticamente a los customers cuando un capitán cambia de estado
+5. **Persistencia:** Los datos del capitán se guardan en Redis mientras esté en servicio
+6. **Limpieza al desconectar:** Si el capitán se desconecta, se elimina automáticamente de Redis
+
+---
+
+## Errores Comunes
+
+1. **Socket no conectado:** Emitir evento sin conexión activa → No llega al servidor
+2. **Ubicación inválida:** Coordenadas nulas o incorrectas → Error en servidor
+3. **No escuchar confirmación:** No actualizar UI porque no se escucha `captainStatusChanged`
+4. **Timeout sin respuesta:** Esperar demasiado tiempo sin confirmación → Implementar timeout
+
+---
+
+## Referencias de Código Backend
+
+- **handleGoOnDuty:** `controllers/sockets/captainHandlers.js:7-25`
+- **handleGoOffDuty:** `controllers/sockets/captainHandlers.js:30-39`
+- **Registro de eventos:** `controllers/sockets/main.js:56-60`
+- **Función updateNearbyCaptains:** `controllers/sockets/index.js:89-107`
+
+---
+
+## Referencias de Código Frontend
+
+**Para el capitán:**
+- Emitir: `socket.emit('goOnDuty', { latitude, longitude })`
+- Emitir: `socket.emit('goOffDuty')`
+- Escuchar: `socket.on('captainStatusChanged', callback)`
+
+**Para el cliente:**
+- Escuchar: `socket.on('nearbyCaptains', callback)`
+- Suscribirse: `socket.emit('subscribeToZone', { latitude, longitude })`

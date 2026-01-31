@@ -183,7 +183,7 @@ describe('Ride Controller Tests', () => {
       await ride.save();
 
       const response = await request(app)
-        .get('/ride/my-rides')
+        .get('/ride/rides')
         .set('Authorization', `Bearer ${captainToken}`)
         .expect(200);
 
@@ -199,7 +199,7 @@ describe('Ride Controller Tests', () => {
       await ride2.save();
 
       const response = await request(app)
-        .get('/ride/my-rides')
+        .get('/ride/rides')
         .set('Authorization', `Bearer ${customerToken}`)
         .query({ status: 'COMPLETED' })
         .expect(200);

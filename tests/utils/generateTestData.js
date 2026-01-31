@@ -113,14 +113,21 @@ const generateProduct = (storeId) => {
   };
 };
 
-const generateDelivery = (customerId, storeId, captainId = null, items = []) => {
+const generateDelivery = (customerId, storeId, captainId = null, items = [], productId = null) => {
   const pickupLat = randFloat(-90,90,6);
   const pickupLon = randFloat(-180,180,6);
   const deliveryLat = randFloat(-90,90,6);
   const deliveryLon = randFloat(-180,180,6);
 
   let subtotal = 0;
-  const generatedItems = items.length ? items : [ { product: null, name: 'Item', price: 100, quantity: 1, subtotal: 100 } ];
+  const defaultProductId = productId || new require('mongoose').Types.ObjectId();
+  const generatedItems = items.length ? items : [ { 
+    product: defaultProductId, 
+    name: 'Item', 
+    price: 100, 
+    quantity: 1, 
+    subtotal: 100 
+  } ];
   generatedItems.forEach(i => subtotal += i.subtotal || (i.price*i.quantity));
 
   const deliveryFee = 20;
@@ -134,8 +141,28 @@ const generateDelivery = (customerId, storeId, captainId = null, items = []) => 
     customer: customerId,
     captain: captainId,
     items: generatedItems,
-    pickup: { address: 'Pickup', latitude: pickupLat, longitude: pickupLon },
-    delivery: { address: 'Delivery', latitude: deliveryLat, longitude: deliveryLon },
+    pickup: { 
+      address: { 
+        street: 'Pickup Street 123', 
+        city: 'Test City', 
+        state: 'Test State', 
+        country: 'MX', 
+        postalCode: '00000' 
+      }, 
+      latitude: pickupLat, 
+      longitude: pickupLon 
+    },
+    delivery: { 
+      address: { 
+        street: 'Delivery Street 456', 
+        city: 'Test City', 
+        state: 'Test State', 
+        country: 'MX', 
+        postalCode: '00000' 
+      }, 
+      latitude: deliveryLat, 
+      longitude: deliveryLon 
+    },
     pricing: { subtotal, tax, deliveryFee, total, currency: 'MXN' },
     status: 'PENDING',
     paymentStatus: 'PENDING',

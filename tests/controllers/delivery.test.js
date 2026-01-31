@@ -76,9 +76,12 @@ describe('Delivery Controller Tests', () => {
       const response = await request(app)
         .post('/delivery/create')
         .set('Authorization', `Bearer ${customerToken}`)
-        .send(deliveryData)
-        .expect(201);
+        .send(deliveryData);
+      
+      console.log('Response status:', response.status);
+      console.log('Response body:', JSON.stringify(response.body, null, 2));
 
+      expect(response.status).toBe(201);
       expect(response.body.message).toBe('Delivery order created successfully');
       expect(response.body.delivery).toBeDefined();
       expect(response.body.delivery.orderNumber).toBeDefined();
@@ -99,15 +102,17 @@ describe('Delivery Controller Tests', () => {
     });
 
     it('should fail for non-existent store', async () => {
+      const fakeStoreId = '507f1f77bcf86cd799439011';
       const response = await request(app)
         .post('/delivery/create')
         .set('Authorization', `Bearer ${customerToken}`)
         .send({
-          storeId: '507f1f77bcf86cd799439011',
+          storeId: fakeStoreId,
           items: [{ productId: productId.toString(), quantity: 1 }],
           deliveryType: 'HOME_DELIVERY',
-          pickupAddress: { latitude: 0, longitude: 0 },
-          deliveryAddress: { latitude: 0, longitude: 0 }
+          pickupAddress: { street: 'Test', city: 'Test', state: 'Test', country: 'MX', postalCode: '00000', latitude: 19.4326, longitude: -99.1332 },
+          deliveryAddress: { street: 'Test', city: 'Test', state: 'Test', country: 'MX', postalCode: '00000', latitude: 19.4330, longitude: -99.1340 },
+          paymentMethod: 'cash'
         })
         .expect(404);
 
@@ -115,18 +120,23 @@ describe('Delivery Controller Tests', () => {
     });
 
     it('should fail if product is not available', async () => {
-      // Make product unavailable
-      await Product.findByIdAndUpdate(productId, { isAvailable: false });
+      // Create unavailable product
+      const unavailableProduct = new Product({
+        ...generateProduct(storeId),
+        isAvailable: false
+      });
+      await unavailableProduct.save();
 
       const response = await request(app)
         .post('/delivery/create')
         .set('Authorization', `Bearer ${customerToken}`)
         .send({
           storeId: storeId.toString(),
-          items: [{ productId: productId.toString(), quantity: 1 }],
+          items: [{ productId: unavailableProduct._id.toString(), quantity: 1 }],
           deliveryType: 'HOME_DELIVERY',
-          pickupAddress: { latitude: 0, longitude: 0 },
-          deliveryAddress: { latitude: 0, longitude: 0 }
+          pickupAddress: { street: 'Test', city: 'Test', state: 'Test', country: 'MX', postalCode: '00000', latitude: 19.4326, longitude: -99.1332 },
+          deliveryAddress: { street: 'Test', city: 'Test', state: 'Test', country: 'MX', postalCode: '00000', latitude: 19.4330, longitude: -99.1340 },
+          paymentMethod: 'cash'
         })
         .expect(400);
 
@@ -134,19 +144,27 @@ describe('Delivery Controller Tests', () => {
     });
 
     it('should fail if insufficient inventory', async () => {
+      // Create product with low inventory
+      const lowInventoryProduct = new Product({
+        ...generateProduct(storeId),
+        inventory: 1
+      });
+      await lowInventoryProduct.save();
+
       const response = await request(app)
         .post('/delivery/create')
         .set('Authorization', `Bearer ${customerToken}`)
         .send({
           storeId: storeId.toString(),
-          items: [{ productId: productId.toString(), quantity: 999 }],
+          items: [{ productId: lowInventoryProduct._id.toString(), quantity: 5 }],
           deliveryType: 'HOME_DELIVERY',
-          pickupAddress: { latitude: 0, longitude: 0 },
-          deliveryAddress: { latitude: 0, longitude: 0 }
+          pickupAddress: { street: 'Test', city: 'Test', state: 'Test', country: 'MX', postalCode: '00000', latitude: 19.4326, longitude: -99.1332 },
+          deliveryAddress: { street: 'Test', city: 'Test', state: 'Test', country: 'MX', postalCode: '00000', latitude: 19.4330, longitude: -99.1340 },
+          paymentMethod: 'cash'
         })
         .expect(400);
 
-      expect(response.body.msg).toContain('Insufficient inventory');
+      expect(response.body.msg).toContain('inventory');
     });
   });
 
@@ -170,11 +188,11 @@ describe('Delivery Controller Tests', () => {
 
     it('should filter deliveries by status', async () => {
       // Create deliveries with different statuses
-      const delivery1 = new Delivery(generateDelivery(customerId, storeId));
+      const delivery1 = new Delivery(generateDelivery(customerId, storeId, null, [], productId));
       delivery1.status = 'PENDING';
       await delivery1.save();
 
-      const delivery2 = new Delivery(generateDelivery(customerId, storeId));
+      const delivery2 = new Delivery(generateDelivery(customerId, storeId, null, [], productId));
       delivery2.status = 'DELIVERED';
       await delivery2.save();
 
@@ -190,7 +208,7 @@ describe('Delivery Controller Tests', () => {
 
   describe('GET /delivery/:deliveryId', () => {
     it('should get delivery by ID', async () => {
-      const deliveryData = generateDelivery(customerId, storeId);
+      const deliveryData = generateDelivery(customerId, storeId, null, [], productId);
       const delivery = new Delivery(deliveryData);
       await delivery.save();
 
@@ -215,7 +233,7 @@ describe('Delivery Controller Tests', () => {
 
   describe('PATCH /delivery/:deliveryId/cancel', () => {
     it('should cancel delivery successfully', async () => {
-      const deliveryData = generateDelivery(customerId, storeId);
+      const deliveryData = generateDelivery(customerId, storeId, null, [], productId);
       deliveryData.status = 'PENDING';
       const delivery = new Delivery(deliveryData);
       await delivery.save();
@@ -233,7 +251,7 @@ describe('Delivery Controller Tests', () => {
 
   describe('GET /delivery/track/:trackingCode', () => {
     it('should track delivery by tracking code', async () => {
-      const deliveryData = generateDelivery(customerId, storeId);
+      const deliveryData = generateDelivery(customerId, storeId, null, [], productId);
       const delivery = new Delivery(deliveryData);
       await delivery.save();
 

@@ -13,7 +13,7 @@ describe('API Routes Integration Tests', () => {
   let storeOwnerToken, storeOwnerId;
   let storeId, productId;
 
-  beforeAll(async () => {
+  beforeEach(async () => {
     // Create test users
     const customer = new User(generateUser('customer'));
     await customer.save();
@@ -44,7 +44,7 @@ describe('API Routes Integration Tests', () => {
     it('should complete full auth flow: register -> login -> refresh token', async () => {
       // Register new user
       const registerResponse = await request(app)
-        .post('/auth')
+        .post('/auth/signin')
         .send({
           phone: '5555555555',
           role: 'customer',
@@ -59,7 +59,7 @@ describe('API Routes Integration Tests', () => {
 
       // Refresh token
       const refreshResponse = await request(app)
-        .post('/auth/refresh')
+        .post('/auth/refresh-token')
         .send({ refresh_token: refreshToken })
         .expect(200);
 
@@ -223,7 +223,7 @@ describe('API Routes Integration Tests', () => {
         .expect(200);
 
       expect(acceptResponse.body.ride.status).toBe('START');
-      expect(acceptResponse.body.ride.captain.toString()).toBe(captainId.toString());
+      expect(acceptResponse.body.ride.captain._id.toString()).toBe(captainId.toString());
 
       // Update status to arrived
       const arriveResponse = await request(app)
@@ -256,7 +256,7 @@ describe('API Routes Integration Tests', () => {
   describe('Error Handling', () => {
     it('should handle 404 errors gracefully', async () => {
       const response = await request(app)
-        .get('/api/non-existent-route')
+        .get('/non-existent-route')
         .expect(404);
 
       expect(response.body.msg).toBeDefined();
@@ -265,6 +265,7 @@ describe('API Routes Integration Tests', () => {
     it('should handle authentication errors', async () => {
       const response = await request(app)
         .get('/store/my-stores')
+        .set('Authorization', 'Bearer invalid_token')
         .expect(401);
 
       expect(response.body.msg).toBeDefined();
@@ -272,7 +273,7 @@ describe('API Routes Integration Tests', () => {
 
     it('should handle validation errors', async () => {
       const response = await request(app)
-        .post('/auth')
+        .post('/auth/signin')
         .send({})  // Empty body
         .expect(400);
 

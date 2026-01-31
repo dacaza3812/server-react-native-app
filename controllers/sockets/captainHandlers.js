@@ -19,6 +19,7 @@ async function handleGoOnDuty(socket, user, coords, updateNearbyCaptains) {
   await redis.sadd("captains:availability", user.id);
   
   socket.join("onDuty");
+  socket.emit("captainStatusChanged", { status: "onDuty", message: "You are now on duty" });
   console.log(`Captain ${user.id} is now on duty.🫡`);
   updateNearbyCaptains();
 }
@@ -32,6 +33,7 @@ async function handleGoOffDuty(socket, user, updateNearbyCaptains) {
   await redis.del(`drivers:meta:${user.id}`);
   
   socket.leave("onDuty");
+  socket.emit("captainStatusChanged", { status: "offDuty", message: "You are now off duty" });
   console.log(`Captain ${user.id} is now off duty.😪`);
   updateNearbyCaptains();
 }

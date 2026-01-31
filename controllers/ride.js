@@ -1,5 +1,5 @@
 const Ride = require("../models/Ride");
-const { BadRequestError } = require("../errors");
+const { BadRequestError, NotFoundError } = require("../errors");
 const { StatusCodes } = require("http-status-codes");
 const {
   calculateDistance,
@@ -100,6 +100,10 @@ const acceptRide = async (req, res) => {
     });
   } catch (error) {
     console.error("Error accepting ride:", error);
+    // Re-throw custom errors as-is
+    if (error.name === 'NotFoundError' || error.name === 'BadRequestError') {
+      throw error;
+    }
     throw new BadRequestError("Failed to accept ride");
   }
 };
@@ -134,6 +138,10 @@ const updateRideStatus = async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating ride status:", error);
+    // Re-throw custom errors as-is
+    if (error.name === 'NotFoundError' || error.name === 'BadRequestError') {
+      throw error;
+    }
     throw new BadRequestError("Failed to update ride status");
   }
 };
@@ -167,4 +175,53 @@ const getMyRides = async (req, res) => {
   }
 };
 
-module.exports = { createRide, acceptRide, updateRideStatus, getMyRides };
+const cancelRide = async (req, res) => {
+  const { rideId } = req.params;
+  const { reason } = req.body;
+  const userId = req.user.id;
+  const userRole = req.user.role;
+
+  try {
+    const ride = await Ride.findById(rideId).populate("customer captain");
+
+    if (!ride) {
+      throw new NotFoundError("Ride not found");
+    }
+
+    if (ride.customer._id.toString() !== userId && ride.captain?._id.toString() !== userId) {
+      throw new BadRequestError("You don't have permission to cancel this ride");
+    }
+
+    if (ride.status === "COMPLETED") {
+      throw new BadRequestError("Cannot cancel a completed ride");
+    }
+
+    if (ride.status === "CANCELLED") {
+      throw new BadRequestError("Ride is already cancelled");
+    }
+
+    ride.status = "CANCELLED";
+    ride.cancellationReason = reason || "";
+    ride.cancelledBy = userId;
+    await ride.save();
+
+    req.io.to(`ride_${rideId}`).emit("rideCancelled", {
+      ride,
+      cancelledBy: userRole,
+      message: "Ride cancelled successfully",
+    });
+
+    res.status(StatusCodes.OK).json({
+      message: "Ride cancelled successfully",
+      ride,
+    });
+  } catch (error) {
+    console.error("Error cancelling ride:", error);
+    if (error.name === 'NotFoundError' || error.name === 'BadRequestError') {
+      throw error;
+    }
+    throw new BadRequestError("Failed to cancel ride");
+  }
+};
+
+module.exports = { createRide, acceptRide, updateRideStatus, getMyRides, cancelRide };

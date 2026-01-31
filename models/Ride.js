@@ -38,11 +38,20 @@ const rideSchema = new Schema(
     },
     status: {
       type: String,
-      enum: ["SEARCHING_FOR_CAPTAIN", "START", "ARRIVED", "COMPLETED"],
+      enum: ["SEARCHING_FOR_CAPTAIN", "START", "ARRIVED", "COMPLETED", "CANCELLED"],
       default: "SEARCHING_FOR_CAPTAIN",
     },
     otp: {
       type: String,
+      default: null,
+    },
+    cancellationReason: {
+      type: String,
+      default: null,
+    },
+    cancelledBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
       default: null,
     },
   },

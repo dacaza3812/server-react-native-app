@@ -38,7 +38,11 @@ async function handleCancelRide(socket, io, user, rideId, rideNotificationSent, 
 
     delete rideNotificationSent[rideId];
     socket.emit("rideCanceled", { message: cancelMessage });
-    await Ride.findByIdAndDelete(rideId);
+
+    ride.status = "CANCELLED";
+    ride.cancelledBy = user.id;
+    ride.cancellationReason = "";
+    await ride.save();
 
     console.log(`User ${user.id} canceled the ride ${rideId}`);
   } catch (error) {

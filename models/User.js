@@ -6,7 +6,7 @@ const userSchema = new Schema(
   {
     role: {
       type: String,
-      enum: ["customer", "captain"],
+      enum: ["customer", "captain", "store_owner"],
       required: true,
     },
     phone: {
@@ -18,7 +18,87 @@ const userSchema = new Schema(
       type: String,
       required: false,
       unique: false
-    }
+    },
+    // Store owner specific fields
+    stores: [{
+      type: Schema.Types.ObjectId,
+      ref: "Store",
+    }],
+    // Customer specific fields
+    addresses: [{
+      type: {
+        street: String,
+        city: String,
+        state: String,
+        country: { type: String, default: "MX" },
+        postalCode: String,
+        latitude: Number,
+        longitude: Number,
+        isDefault: { type: Boolean, default: false },
+        label: { type: String, default: "Home" },
+      }
+    }],
+    deliveryPreferences: {
+      defaultAddress: {
+        street: String,
+        city: String,
+        state: String,
+        country: { type: String, default: "MX" },
+        postalCode: String,
+        latitude: Number,
+        longitude: Number,
+      },
+      preferredContact: { type: String, enum: ["phone", "email"], default: "phone" },
+      instructions: { type: String, default: "" },
+      tipPercentage: { type: Number, default: 0 },
+    },
+    // Captain specific fields
+    vehicle: {
+      type: {
+        type: String,
+        enum: ["bike", "auto", "car"],
+        default: "auto",
+      },
+      licensePlate: String,
+      color: String,
+      model: String,
+    },
+    // Profile information
+    profile: {
+      name: String,
+      email: String,
+      avatar: String,
+      dateOfBirth: Date,
+      gender: { type: String, enum: ["male", "female", "other", "prefer_not_to_say"] },
+    },
+    // Verification status
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+    verificationDocuments: [{
+      type: String,
+    }],
+    // Rating system
+    rating: {
+      average: {
+        type: Number,
+        default: 0,
+        min: 0,
+        max: 5,
+      },
+      total: {
+        type: Number,
+        default: 0,
+      },
+    },
+    // Statistics
+    statistics: {
+      totalRides: { type: Number, default: 0 },
+      totalDeliveries: { type: Number, default: 0 },
+      totalEarnings: { type: Number, default: 0 },
+      totalHours: { type: Number, default: 0 },
+    },
   },
   {
     timestamps: true,

@@ -20,17 +20,21 @@ router.use((req, res, next) => {
   next();
 });
 
-// Public routes (no authentication required)
-router.get("/nearby", getNearbyStores);
-router.get("/:storeId", getStoreById);
-
-// Protected routes (authentication required)
+// Protected routes - STATIC ROUTES FIRST (authentication required)
 router.post("/register", authMiddleware, createStore);
 router.get("/my-stores", authMiddleware, getMyStores);
+
+// Public routes (no authentication required)
+router.get("/nearby", getNearbyStores);
+
+// Protected routes - DYNAMIC ROUTES LAST (authentication required)
 router.get("/:storeId/orders", authMiddleware, getStoreOrders);
 router.get("/:storeId/stats", authMiddleware, getStoreStats);
 router.patch("/:storeId", authMiddleware, updateStore);
 router.patch("/:storeId/status", authMiddleware, updateStoreStatus);
 router.delete("/:storeId", authMiddleware, deleteStore);
+
+// Public route - MUST BE LAST to avoid catching other routes
+router.get("/:storeId", getStoreById);
 
 module.exports = router;

@@ -2,6 +2,8 @@ const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 const jwt = require("jsonwebtoken");
 
+const bcrypt = require("bcryptjs");
+
 const userV1Schema = new Schema(
   {
     role: {
@@ -13,6 +15,14 @@ const userV1Schema = new Schema(
       type: String,
       required: true,
       unique: true,
+    },
+    password: {
+      type: String,
+      required: true,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
     },
     firebasePushToken: {
       type: String,
@@ -131,6 +141,18 @@ userV1Schema.methods.createRefreshToken = function () {
       expiresIn: process.env.REFRESH_TOKEN_EXPIRY,
     }
   );
+};
+
+// Hash password before saving
+userV1Schema.pre("save", async function (next) {
+  if (!this.isModified("password")) return next();
+  this.password = await bcrypt.hash(this.password, 12);
+  next();
+});
+
+// Compare password method
+userV1Schema.methods.comparePassword = async function (candidatePassword) {
+  return await bcrypt.compare(candidatePassword, this.password);
 };
 
 const UserV1 = mongoose.model("UserV1", userV1Schema);

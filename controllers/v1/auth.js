@@ -3,12 +3,46 @@ const { StatusCodes } = require("http-status-codes");
 const { BadRequestError, UnauthenticatedError, NotFoundError } = require("../../errors");
 const jwt = require("jsonwebtoken");
 
-const auth = async (req, res) => {
+// Validar campos según el rol
+const validateRegistrationFields = (role, body) => {
+  const { phone, password, name, lastName, dni, vehicle, businessName, taxId } = body;
+  
+  // Campos base requeridos para todos
+  if (!phone || !password || !role || !name || !lastName) {
+    return { valid: false, message: "Teléfono, contraseña, nombre y apellido son requeridos" };
+  }
+  
+  // Validar longitud de contraseña
+  if (password.length < 6) {
+    return { valid: false, message: "La contraseña debe tener al menos 6 caracteres" };
+  }
+  
+  // Validar según rol
+  if (role === "captain") {
+    if (!dni) {
+      return { valid: false, message: "El DNI es requerido para choferes" };
+    }
+    if (!vehicle || !vehicle.type || !vehicle.licensePlate) {
+      return { valid: false, message: "Tipo de vehículo y placa son requeridos para choferes" };
+    }
+  }
+  
+  if (role === "store_owner") {
+    if (!businessName || !taxId) {
+      return { valid: false, message: "Nombre del negocio y RUC/tax ID son requeridos para tiendas" };
+    }
+  }
+  
+  return { valid: true };
+};
+
+// REGISTRO - Solo crea usuarios nuevos
+const register = async (req, res) => {
   const {
     phone,
+    password,
     role,
     firebasePushToken,
-    forceSwitch = false,
     name,
     lastName,
     email,
@@ -17,79 +51,27 @@ const auth = async (req, res) => {
     gender,
     dni,
     vehicle,
+    businessName,
+    taxId,
   } = req.body;
 
-  if (!phone) {
-    throw new BadRequestError("Phone number is required");
+  // Validar campos según rol
+  const validation = validateRegistrationFields(role, req.body);
+  if (!validation.valid) {
+    throw new BadRequestError(validation.message);
   }
 
-  if (!role || !["customer", "captain", "store_owner"].includes(role)) {
-    throw new BadRequestError("Valid role is required (customer, captain, or store_owner)");
+  // Verificar si el teléfono ya existe
+  const existingUser = await UserV1.findOne({ phone });
+  if (existingUser) {
+    throw new BadRequestError("Este número de teléfono ya está registrado");
   }
 
   try {
-    if (firebasePushToken) {
-      const userWithToken = await UserV1.findOne({
-        firebasePushToken,
-        phone: { $ne: phone },
-      });
-      if (userWithToken) {
-        await UserV1.findByIdAndUpdate(
-          userWithToken._id,
-          { firebasePushToken: "" },
-          { runValidators: false }
-        );
-      }
-    }
-
-    let user = await UserV1.findOne({ phone });
-
-    if (user) {
-      if (user.role !== role) {
-        if (forceSwitch) {
-          user.role = role;
-          await user.save();
-        } else {
-          throw new BadRequestError(
-            "Usuario ya existe con diferente rol. Use forceSwitch=true para confirmar."
-          );
-        }
-      }
-
-      const profileFields = { name, lastName, email, avatarUrl, dateOfBirth, gender, dni };
-      Object.keys(profileFields).forEach((key) => {
-        if (profileFields[key] !== undefined) {
-          user.profile[key] = profileFields[key];
-        }
-      });
-
-      // Update vehicle if provided
-      if (vehicle) {
-        if (vehicle.type !== undefined) user.vehicle.type = vehicle.type;
-        if (vehicle.licensePlate !== undefined) user.vehicle.licensePlate = vehicle.licensePlate;
-        if (vehicle.color !== undefined) user.vehicle.color = vehicle.color;
-        if (vehicle.model !== undefined) user.vehicle.model = vehicle.model;
-      }
-
-      if (firebasePushToken && firebasePushToken !== user.firebasePushToken) {
-        user.firebasePushToken = firebasePushToken;
-      }
-
-      await user.save();
-
-      const accessToken = user.createAccessToken();
-      const refreshToken = user.createRefreshToken();
-
-      return res.status(StatusCodes.OK).json({
-        message: "User logged in successfully",
-        user,
-        access_token: accessToken,
-        refresh_token: refreshToken,
-      });
-    }
-
-    user = new UserV1({
+    // Crear nuevo usuario
+    const userData = {
       phone,
+      password,
       role,
       firebasePushToken,
       profile: {
@@ -99,24 +81,103 @@ const auth = async (req, res) => {
         avatarUrl,
         dateOfBirth,
         gender,
-        dni,
+        dni: role === "captain" ? dni : undefined,
       },
-      vehicle: vehicle || {},
-    });
+    };
 
+    // Agregar campos específicos por rol
+    if (role === "captain") {
+      userData.vehicle = {
+        type: vehicle.type,
+        licensePlate: vehicle.licensePlate,
+        color: vehicle.color,
+        model: vehicle.model,
+      };
+    }
+
+    if (role === "store_owner") {
+      userData.seller = {
+        businessName,
+        taxId,
+      };
+    }
+
+    const user = new UserV1(userData);
     await user.save();
 
+    // Generar tokens
     const accessToken = user.createAccessToken();
     const refreshToken = user.createRefreshToken();
 
+    // No devolver la contraseña
+    const userResponse = user.toObject();
+    delete userResponse.password;
+
     res.status(StatusCodes.CREATED).json({
-      message: "User created successfully",
-      user,
+      message: "Usuario registrado exitosamente",
+      user: userResponse,
       access_token: accessToken,
       refresh_token: refreshToken,
     });
   } catch (error) {
-    console.error("Auth error:", error);
+    console.error("Register error:", error);
+    throw error;
+  }
+};
+
+// LOGIN - Solo autentica usuarios existentes
+const login = async (req, res) => {
+  const { phone, password, role, firebasePushToken } = req.body;
+
+  if (!phone || !password || !role) {
+    throw new BadRequestError("Teléfono, contraseña y rol son requeridos");
+  }
+
+  try {
+    // Buscar usuario
+    const user = await UserV1.findOne({ phone });
+    if (!user) {
+      throw new UnauthenticatedError("Credenciales inválidas");
+    }
+
+    // Verificar que el usuario esté activo
+    if (!user.isActive) {
+      throw new UnauthenticatedError("Cuenta desactivada");
+    }
+
+    // Verificar rol
+    if (user.role !== role) {
+      throw new BadRequestError(`Este número está registrado como ${user.role}, no como ${role}`);
+    }
+
+    // Verificar contraseña
+    const isPasswordValid = await user.comparePassword(password);
+    if (!isPasswordValid) {
+      throw new UnauthenticatedError("Credenciales inválidas");
+    }
+
+    // Actualizar firebasePushToken si cambió
+    if (firebasePushToken && firebasePushToken !== user.firebasePushToken) {
+      user.firebasePushToken = firebasePushToken;
+      await user.save();
+    }
+
+    // Generar tokens
+    const accessToken = user.createAccessToken();
+    const refreshToken = user.createRefreshToken();
+
+    // No devolver la contraseña
+    const userResponse = user.toObject();
+    delete userResponse.password;
+
+    res.status(StatusCodes.OK).json({
+      message: "Login exitoso",
+      user: userResponse,
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+  } catch (error) {
+    console.error("Login error:", error);
     throw error;
   }
 };
@@ -173,9 +234,12 @@ const updateProfile = async (req, res) => {
 
     await user.save();
 
+    const userResponse = user.toObject();
+    delete userResponse.password;
+
     res.status(StatusCodes.OK).json({
       message: "Profile updated successfully",
-      user,
+      user: userResponse,
     });
   } catch (error) {
     console.error("Update profile error:", error);
@@ -213,9 +277,12 @@ const updateCaptainProfile = async (req, res) => {
 
     await user.save();
 
+    const userResponse = user.toObject();
+    delete userResponse.password;
+
     res.status(StatusCodes.OK).json({
       message: "Captain profile updated successfully",
-      user,
+      user: userResponse,
     });
   } catch (error) {
     console.error("Update captain profile error:", error);
@@ -223,9 +290,50 @@ const updateCaptainProfile = async (req, res) => {
   }
 };
 
+// Cambiar contraseña
+const changePassword = async (req, res) => {
+  const userId = req.user.id;
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword) {
+    throw new BadRequestError("Contraseña actual y nueva son requeridas");
+  }
+
+  if (newPassword.length < 6) {
+    throw new BadRequestError("La nueva contraseña debe tener al menos 6 caracteres");
+  }
+
+  try {
+    const user = await UserV1.findById(userId);
+
+    if (!user) {
+      throw new NotFoundError("User not found");
+    }
+
+    // Verificar contraseña actual
+    const isPasswordValid = await user.comparePassword(currentPassword);
+    if (!isPasswordValid) {
+      throw new BadRequestError("Contraseña actual incorrecta");
+    }
+
+    // Actualizar contraseña (se hashea automáticamente en el pre-save)
+    user.password = newPassword;
+    await user.save();
+
+    res.status(StatusCodes.OK).json({
+      message: "Contraseña actualizada exitosamente",
+    });
+  } catch (error) {
+    console.error("Change password error:", error);
+    throw new BadRequestError("Failed to change password");
+  }
+};
+
 module.exports = {
-  auth,
+  register,
+  login,
   refreshToken,
   updateProfile,
   updateCaptainProfile,
+  changePassword,
 };

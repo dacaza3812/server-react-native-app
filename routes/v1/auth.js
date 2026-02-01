@@ -1,18 +1,24 @@
 const express = require("express");
 const router = express.Router();
 const {
-  auth,
+  register,
+  login,
   refreshToken,
   updateProfile,
   updateCaptainProfile,
+  changePassword,
 } = require("../../controllers/v1/auth");
-
-router.post("/signin", auth);
-router.post("/refresh-token", refreshToken);
 
 const authMiddleware = require("../../middleware/authenticationV1");
 
-router.post("/update-profile", authMiddleware, updateProfile);
-router.post("/update-captain-profile", authMiddleware, updateCaptainProfile);
+// Public routes
+router.post("/register", register);
+router.post("/login", login);
+router.post("/refresh-token", refreshToken);
+
+// Protected routes
+router.patch("/update-profile", authMiddleware, updateProfile);
+router.patch("/update-captain-profile", authMiddleware, updateCaptainProfile);
+router.patch("/change-password", authMiddleware, changePassword);
 
 module.exports = router;

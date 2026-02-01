@@ -31,6 +31,9 @@ const storeRouter = require("./routes/store");
 const productRouter = require("./routes/product");
 const apiDocsRouter = require("./routes/api-docs");
 
+// V1 Routers
+const v1Router = require("./routes/v1");
+
 // Import socket handler
 const handleSocketConnection = require("./controllers/sockets");
 
@@ -61,6 +64,7 @@ app.use("/notification", notificationRouter);
 app.use("/uploads", express.static("uploads"));
 app.use("/banner", bannerRouter);
 app.use("/api-docs", apiDocsRouter);
+app.use("/api/v1", v1Router);
 
 // Middleware
 app.use(notFoundMiddleware);

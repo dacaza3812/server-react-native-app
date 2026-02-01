@@ -5,21 +5,29 @@ const Delivery = require("../../models/Delivery");
  * Maneja el evento cuando un capitán se pone en servicio
  */
 async function handleGoOnDuty(socket, user, coords, updateNearbyCaptains) {
-  await redis.hset(`drivers:meta:${user.id}`, 
+  await redis.hset(`drivers:meta:${user.id}`,
     "socketId", socket.id,
     "firebasePushToken", user.firebasePushToken || "",
     "lat", coords.latitude.toString(),
     "lng", coords.longitude.toString()
   );
-  await redis.geoadd("drivers:locations", 
-    coords.longitude, 
-    coords.latitude, 
+  await redis.geoadd("drivers:locations",
+    coords.longitude,
+    coords.latitude,
     user.id
   );
   await redis.sadd("captains:availability", user.id);
-  
+
   socket.join("onDuty");
-  socket.emit("captainStatusChanged", { status: "onDuty", message: "You are now on duty" });
+  // Emitir usando el socket del usuario desde activeSockets para asegurar que llega al cliente correcto
+  const userSocket = require("./index").activeSockets.get(user.id);
+  if (userSocket) {
+    userSocket.emit("captainStatusChanged", { status: "onDuty", message: "You are now on duty" });
+    console.log(`📡 captainStatusChanged enviado a captain ${user.id}, socket: ${userSocket.id}`);
+  } else {
+    socket.emit("captainStatusChanged", { status: "onDuty", message: "You are now on duty" });
+    console.log(`📡 captainStatusChanged enviado directamente a socket ${socket.id}`);
+  }
   console.log(`Captain ${user.id} is now on duty.🫡`);
   updateNearbyCaptains();
 }
@@ -31,9 +39,17 @@ async function handleGoOffDuty(socket, user, updateNearbyCaptains) {
   await redis.zrem("drivers:locations", user.id);
   await redis.srem("captains:availability", user.id);
   await redis.del(`drivers:meta:${user.id}`);
-  
+
   socket.leave("onDuty");
-  socket.emit("captainStatusChanged", { status: "offDuty", message: "You are now off duty" });
+  // Emitir usando el socket del usuario desde activeSockets para asegurar que llega al cliente correcto
+  const userSocket = require("./index").activeSockets.get(user.id);
+  if (userSocket) {
+    userSocket.emit("captainStatusChanged", { status: "offDuty", message: "You are now off duty" });
+    console.log(`📡 captainStatusChanged enviado a captain ${user.id}, socket: ${userSocket.id}`);
+  } else {
+    socket.emit("captainStatusChanged", { status: "offDuty", message: "You are now off duty" });
+    console.log(`📡 captainStatusChanged enviado directamente a socket ${socket.id}`);
+  }
   console.log(`Captain ${user.id} is now off duty.😪`);
   updateNearbyCaptains();
 }

@@ -1,0 +1,1386 @@
+openapi: 3.0.3
+info:
+  title: Rapido API V1
+  description: API versionada para aplicación de transporte y delivery con nuevas funcionalidades
+  version: 1.0.0
+  contact:
+    name: Rapido API Support
+
+servers:
+  - url: http://localhost:3000/api/v1
+    description: Servidor de desarrollo local
+  - url: https://api.rapido.com/api/v1
+    description: Servidor de producción
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ==================== AUTH ====================
+  /auth/signin:
+    post:
+      summary: Autenticar usuario V1
+      description: Inicia sesión o crea un nuevo usuario con campos adicionales (nombre, apellido, dni, avatar)
+      tags:
+        - Autenticación
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - phone
+                - role
+              properties:
+                phone:
+                  type: string
+                  description: Número de teléfono del usuario
+                  example: "+521234567890"
+                role:
+                  type: string
+                  enum: [customer, captain, store_owner]
+                  description: Rol del usuario
+                  example: customer
+                firebasePushToken:
+                  type: string
+                  description: Token de Firebase para notificaciones push
+                  example: "fcm_token_123"
+                forceSwitch:
+                  type: boolean
+                  description: Forzar cambio de rol si ya existe con rol diferente
+                  default: false
+                name:
+                  type: string
+                  description: Nombre del usuario
+                  example: "Juan"
+                lastName:
+                  type: string
+                  description: Apellidos del usuario
+                  example: "Pérez García"
+                email:
+                  type: string
+                  description: Correo electrónico
+                  example: "juan@example.com"
+                avatarUrl:
+                  type: string
+                  description: URL de foto de perfil
+                  example: "https://example.com/avatar.jpg"
+                dateOfBirth:
+                  type: string
+                  format: date
+                  description: Fecha de nacimiento
+                  example: "1990-01-01"
+                gender:
+                  type: string
+                  enum: [male, female, other, prefer_not_to_say]
+                  description: Género
+                  example: "male"
+                dni:
+                  type: string
+                  description: Número de DNI
+                  example: "12345678"
+      responses:
+        '200':
+          description: Usuario autenticado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/UserV1'
+                  access_token:
+                    type: string
+                  refresh_token:
+                    type: string
+        '201':
+          description: Usuario creado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/UserV1'
+                  access_token:
+                    type: string
+                  refresh_token:
+                    type: string
+        '400':
+          description: Error en la solicitud
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/refresh-token:
+    post:
+      summary: Refrescar token de acceso
+      description: Genera nuevos tokens de acceso usando un refresh token válido
+      tags:
+        - Autenticación
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+                  description: Token de refresco
+      responses:
+        '200':
+          description: Tokens generados exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  refresh_token:
+                    type: string
+        '401':
+          description: Token inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/update-profile:
+    post:
+      summary: Actualizar perfil de usuario
+      description: Actualiza la información del perfil del usuario autenticado
+      tags:
+        - Autenticación
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                lastName:
+                  type: string
+                email:
+                  type: string
+                avatarUrl:
+                  type: string
+                dateOfBirth:
+                  type: string
+                  format: date
+                gender:
+                  type: string
+                  enum: [male, female, other, prefer_not_to_say]
+      responses:
+        '200':
+          description: Perfil actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/UserV1'
+
+  /auth/update-captain-profile:
+    post:
+      summary: Actualizar perfil de chofer
+      description: Actualiza la información específica de chofer
+      tags:
+        - Autenticación
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dni:
+                  type: string
+                  description: Número de DNI
+                pricePerKm:
+                  type: object
+                  properties:
+                    bike:
+                      type: number
+                      default: 150
+                    auto:
+                      type: number
+                      default: 150
+                    car:
+                      type: number
+                      default: 250
+      responses:
+        '200':
+          description: Perfil de chofer actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/UserV1'
+
+  # ==================== CAPTAINS ====================
+  /captains/profile:
+    get:
+      summary: Obtener perfil del chofer autenticado
+      tags:
+        - Capitanes
+      responses:
+        '200':
+          description: Perfil de chofer recuperado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  captain:
+                    $ref: '#/components/schemas/CaptainProfile'
+
+  /captains/{id}/profile:
+    get:
+      summary: Obtener perfil de un chofer específico
+      tags:
+        - Capitanes
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID del chofer
+      responses:
+        '200':
+          description: Perfil de chofer recuperado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  captain:
+                    $ref: '#/components/schemas/CaptainProfile'
+
+  /captains/{id}/ratings:
+    get:
+      summary: Obtener valoraciones de un chofer
+      tags:
+        - Capitanes
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID del chofer
+      responses:
+        '200':
+          description: Valoraciones recuperadas exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  captain:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      profile:
+                        $ref: '#/components/schemas/Profile'
+                      averageRating:
+                        type: number
+                      totalRatings:
+                        type: integer
+                  ratings:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        type:
+                          type: string
+                          enum: [ride, delivery]
+                        rating:
+                          type: number
+                        review:
+                          type: string
+                        createdAt:
+                          type: string
+                          format: date-time
+
+  /captains/profile:
+    patch:
+      summary: Actualizar perfil propio de chofer
+      tags:
+        - Capitanes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                lastName:
+                  type: string
+                email:
+                  type: string
+                avatarUrl:
+                  type: string
+                dni:
+                  type: string
+      responses:
+        '200':
+          description: Perfil actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  captain:
+                    $ref: '#/components/schemas/CaptainProfile'
+
+  /captains/pricing:
+    patch:
+      summary: Actualizar precios por km del chofer
+      tags:
+        - Capitanes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                pricePerKm:
+                  type: object
+                  properties:
+                    bike:
+                      type: number
+                      minimum: 0
+                    auto:
+                      type: number
+                      minimum: 0
+                    car:
+                      type: number
+                      minimum: 0
+      responses:
+        '200':
+          description: Precios actualizados exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  captain:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      pricePerKm:
+                        type: object
+                        properties:
+                          bike:
+                            type: number
+                          auto:
+                            type: number
+                          car:
+                            type: number
+
+  /captains/{id}/rate:
+    patch:
+      summary: Calificar a un chofer
+      tags:
+        - Capitanes
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID del chofer a calificar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - rating
+              properties:
+                rating:
+                  type: number
+                  minimum: 1
+                  maximum: 5
+                review:
+                  type: string
+      responses:
+        '200':
+          description: Chofer calificado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  captain:
+                    $ref: '#/components/schemas/CaptainProfile'
+
+  # ==================== SELLERS ====================
+  /sellers/profile:
+    get:
+      summary: Obtener perfil del vendedor autenticado
+      tags:
+        - Vendedores
+      responses:
+        '200':
+          description: Perfil de vendedor recuperado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  seller:
+                    $ref: '#/components/schemas/SellerProfile'
+
+  /sellers/{id}/profile:
+    get:
+      summary: Obtener perfil de un vendedor específico
+      tags:
+        - Vendedores
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID del vendedor
+      responses:
+        '200':
+          description: Perfil de vendedor recuperado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  seller:
+                    $ref: '#/components/schemas/SellerProfileWithStores'
+
+  /sellers/{id}/stores:
+    get:
+      summary: Obtener tiendas de un vendedor
+      tags:
+        - Vendedores
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: ID del vendedor
+      responses:
+        '200':
+          description: Tiendas recuperadas exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  count:
+                    type: integer
+                  stores:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Store'
+
+  /sellers/profile:
+    patch:
+      summary: Actualizar perfil de vendedor
+      tags:
+        - Vendedores
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                lastName:
+                  type: string
+                email:
+                  type: string
+                avatarUrl:
+                  type: string
+                businessName:
+                  type: string
+                  description: Nombre comercial
+                taxId:
+                  type: string
+                  description: RFC/NIT
+      responses:
+        '200':
+          description: Perfil actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  seller:
+                    $ref: '#/components/schemas/SellerProfile'
+
+  # ==================== PRODUCTS ====================
+  /products/categories:
+    get:
+      summary: Obtener categorías de productos predefinidas
+      tags:
+        - Productos
+      security: []
+      responses:
+        '200':
+          description: Categorías recuperadas exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  categories:
+                    type: array
+                    items:
+                      type: string
+                    example:
+                      - "Comida y Bebidas"
+                      - "Ropa y Accesorios"
+                      - "Electrónica"
+                      - "Hogar y Decoración"
+                      - "Salud y Belleza"
+                      - "Deportes"
+                      - "Libros"
+                      - "Juguetes"
+                      - "Automotriz"
+                      - "Otros"
+
+  /products/store/{storeId}:
+    get:
+      summary: Obtener productos de una tienda
+      tags:
+        - Productos
+      parameters:
+        - name: storeId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: featured
+          in: query
+          schema:
+            type: boolean
+        - name: available
+          in: query
+          schema:
+            type: boolean
+        - name: active
+          in: query
+          schema:
+            type: boolean
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        '200':
+          description: Productos recuperados exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  count:
+                    type: integer
+                  total:
+                    type: integer
+                  products:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+
+  /products/search:
+    get:
+      summary: Buscar productos
+      tags:
+        - Productos
+      parameters:
+        - name: query
+          in: query
+          schema:
+            type: string
+          description: Término de búsqueda
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: storeId
+          in: query
+          schema:
+            type: string
+        - name: latitude
+          in: query
+          schema:
+            type: number
+        - name: longitude
+          in: query
+          schema:
+            type: number
+        - name: radius
+          in: query
+          schema:
+            type: integer
+            default: 10000
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        '200':
+          description: Búsqueda completada exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  count:
+                    type: integer
+                  total:
+                    type: integer
+                  products:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+
+  /products/{productId}:
+    get:
+      summary: Obtener producto por ID
+      tags:
+        - Productos
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Producto recuperado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  product:
+                    $ref: '#/components/schemas/ProductDetail'
+
+  /products/store/{storeId}:
+    post:
+      summary: Crear producto en una tienda
+      tags:
+        - Productos
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProductRequest'
+      responses:
+        '201':
+          description: Producto creado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  product:
+                    $ref: '#/components/schemas/ProductDetail'
+
+  /products/{productId}:
+    patch:
+      summary: Actualizar producto
+      tags:
+        - Productos
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProductRequest'
+      responses:
+        '200':
+          description: Producto actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  product:
+                    $ref: '#/components/schemas/ProductDetail'
+
+  /products/{productId}:
+    delete:
+      summary: Eliminar producto
+      tags:
+        - Productos
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Producto eliminado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /products/{productId}/inventory:
+    patch:
+      summary: Actualizar inventario de producto
+      tags:
+        - Productos
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - quantity
+              properties:
+                quantity:
+                  type: integer
+                operation:
+                  type: string
+                  enum: [set, add, subtract]
+                  default: set
+      responses:
+        '200':
+          description: Inventario actualizado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  product:
+                    $ref: '#/components/schemas/ProductDetail'
+
+  /products/store/{storeId}/low-inventory:
+    get:
+      summary: Obtener productos con bajo inventario
+      tags:
+        - Productos
+      parameters:
+        - name: storeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Productos con bajo inventario recuperados
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  count:
+                    type: integer
+                  products:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+
+  /products/featured:
+    get:
+      summary: Obtener productos destacados
+      tags:
+        - Productos
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Productos destacados recuperados
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  count:
+                    type: integer
+                  products:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        msg:
+          type: string
+          description: Mensaje de error
+        error:
+          type: string
+          description: Tipo de error
+
+    Profile:
+      type: object
+      properties:
+        name:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        avatar:
+          type: string
+        avatarUrl:
+          type: string
+        dateOfBirth:
+          type: string
+          format: date
+        gender:
+          type: string
+          enum: [male, female, other, prefer_not_to_say]
+        dni:
+          type: string
+
+    CaptainProfile:
+      type: object
+      properties:
+        id:
+          type: string
+        phone:
+          type: string
+        profile:
+          $ref: '#/components/schemas/Profile'
+        vehicle:
+          type: object
+          properties:
+            type:
+              type: string
+              enum: [bike, auto, car]
+            licensePlate:
+              type: string
+            color:
+              type: string
+            model:
+              type: string
+        captain:
+          type: object
+          properties:
+            pricePerKm:
+              type: object
+              properties:
+                bike:
+                  type: number
+                auto:
+                  type: number
+                car:
+                  type: number
+        rating:
+          type: object
+          properties:
+            average:
+              type: number
+            total:
+              type: integer
+        statistics:
+          type: object
+          properties:
+            totalRides:
+              type: integer
+            totalDeliveries:
+              type: integer
+            totalEarnings:
+              type: number
+            totalHours:
+              type: number
+        isVerified:
+          type: boolean
+
+    SellerProfile:
+      type: object
+      properties:
+        id:
+          type: string
+        phone:
+          type: string
+        profile:
+          $ref: '#/components/schemas/Profile'
+        seller:
+          type: object
+          properties:
+            businessName:
+              type: string
+            taxId:
+              type: string
+        stores:
+          type: array
+          items:
+            type: string
+
+    SellerProfileWithStores:
+      type: object
+      properties:
+        id:
+          type: string
+        profile:
+          $ref: '#/components/schemas/Profile'
+        seller:
+          type: object
+          properties:
+            businessName:
+              type: string
+            taxId:
+              type: string
+        stores:
+          type: array
+          items:
+            $ref: '#/components/schemas/Store'
+
+    UserV1:
+      allOf:
+        - $ref: '#/components/schemas/Profile'
+        - type: object
+          properties:
+            _id:
+              type: string
+            role:
+              type: string
+              enum: [customer, captain, store_owner]
+            phone:
+              type: string
+            firebasePushToken:
+              type: string
+            rating:
+              type: object
+              properties:
+                average:
+                  type: number
+                total:
+                  type: integer
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+
+    Store:
+      type: object
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        logo:
+          type: string
+        banner:
+          type: string
+        address:
+          type: object
+          properties:
+            street:
+              type: string
+            city:
+              type: string
+            state:
+              type: string
+            country:
+              type: string
+            postalCode:
+              type: string
+            latitude:
+              type: number
+            longitude:
+              type: number
+        categories:
+          type: array
+          items:
+            type: string
+        deliveryFee:
+          type: number
+        minimumOrderAmount:
+          type: number
+        averageDeliveryTime:
+          type: integer
+        rating:
+          type: object
+          properties:
+            average:
+              type: number
+            total:
+              type: integer
+        total:
+          type: integer
+        isActive:
+          type: boolean
+
+    Product:
+      type: object
+      properties:
+        _id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        category:
+          type: string
+        thumbnail:
+          type: string
+        images:
+          type: array
+          items:
+            type: string
+        rating:
+          type: object
+          properties:
+            average:
+              type: number
+            total:
+              type: integer
+        salesCount:
+          type: integer
+        featured:
+          type: boolean
+        discount:
+          type: number
+        isAvailable:
+          type: boolean
+
+    ProductDetail:
+      allOf:
+        - $ref: '#/components/schemas/Product'
+        - type: object
+          properties:
+            weight:
+              type: number
+            dimensions:
+              type: object
+              properties:
+                length:
+                  type: number
+                width:
+                  type: number
+                height:
+                  type: number
+            inventory:
+              type: integer
+            lowInventoryThreshold:
+              type: integer
+            tags:
+              type: array
+              items:
+                type: string
+            specifications:
+              type: object
+              additionalProperties: true
+            nutritionFacts:
+              type: object
+              properties:
+                calories:
+                  type: number
+                protein:
+                  type: number
+                carbs:
+                  type: number
+                fat:
+                  type: number
+                fiber:
+                  type: number
+                sugar:
+                  type: number
+                sodium:
+                  type: number
+            allergens:
+              type: array
+              items:
+                type: string
+            dietaryInfo:
+              type: array
+              items:
+                type: string
+                enum: [vegetarian, vegan, gluten-free, dairy-free, nut-free, organic]
+            store:
+              $ref: '#/components/schemas/Store'
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+
+    CreateProductRequest:
+      type: object
+      required:
+        - name
+        - description
+        - price
+        - category
+        - images
+        - thumbnail
+        - inventory
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+          minimum: 0
+        category:
+          type: string
+        images:
+          type: array
+          items:
+            type: string
+        thumbnail:
+          type: string
+        weight:
+          type: number
+        dimensions:
+          type: object
+          properties:
+            length:
+              type: number
+            width:
+              type: number
+            height:
+              type: number
+        inventory:
+          type: integer
+          minimum: 0
+        lowInventoryThreshold:
+          type: integer
+        tags:
+          type: array
+          items:
+            type: string
+        specifications:
+          type: object
+          additionalProperties: true
+        nutritionFacts:
+          type: object
+          properties:
+            calories:
+              type: number
+            protein:
+              type: number
+            carbs:
+              type: number
+            fat:
+              type: number
+            fiber:
+              type: number
+            sugar:
+              type: number
+            sodium:
+              type: number
+        allergens:
+          type: array
+          items:
+            type: string
+        dietaryInfo:
+          type: array
+          items:
+            type: string
+        discount:
+          type: number
+          minimum: 0
+          maximum: 100
+        discountValidUntil:
+          type: string
+          format: date-time
+
+    UpdateProductRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+          minimum: 0
+        category:
+          type: string
+        images:
+          type: array
+          items:
+            type: string
+        thumbnail:
+          type: string
+        weight:
+          type: number
+        dimensions:
+          type: object
+          properties:
+            length:
+              type: number
+            width:
+              type: number
+            height:
+              type: number
+        inventory:
+          type: integer
+          minimum: 0
+        lowInventoryThreshold:
+          type: integer
+        tags:
+          type: array
+          items:
+            type: string
+        specifications:
+          type: object
+          additionalProperties: true
+        nutritionFacts:
+          type: object
+          properties:
+            calories:
+              type: number
+            protein:
+              type: number
+            carbs:
+              type: number
+            fat:
+              type: number
+            fiber:
+              type: number
+            sugar:
+              type: number
+            sodium:
+              type: number
+        allergens:
+          type: array
+          items:
+            type: string
+        dietaryInfo:
+          type: array
+          items:
+            type: string
+        discount:
+          type: number
+          minimum: 0
+          maximum: 100
+        discountValidUntil:
+          type: string
+          format: date-time
+        isAvailable:
+          type: boolean
+        isActive:
+          type: boolean
+        featured:
+          type: boolean

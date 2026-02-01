@@ -1,0 +1,17 @@
+✅ Conectado exitosamente a Redis
+HTTP server is running on port 3000
+🟢 Redis listo para operaciones
+User Joined🔴:  {
+  id: '697f81b120f7a27660b549db',
+  role: 'captain',
+  firebasePushToken: 'dIq-zuVrSR-Y6hOQ15WNNi:APA91bGi-vufxZ_yKydLE_F9QS-QMsG3ZexI-NKzyYCWpIBH5d7MBa5fDdeHikpGvvfPi2RN0Q326AwV-obVpZu2iAc5ojoL_Xkzn_wSrB4JX4qf1KgdDec'
+}
+Captain 697f81b120f7a27660b549db is now on duty.🫡
+Captain 697f81b120f7a27660b549db is now on duty.🫡
+captain 697f81b120f7a27660b549db disconnected.
+User Joined🔴:  {
+  id: '697f81b120f7a27660b549db',
+  role: 'captain',
+  firebasePushToken: 'dIq-zuVrSR-Y6hOQ15WNNi:APA91bGi-vufxZ_yKydLE_F9QS-QMsG3ZexI-NKzyYCWpIBH5d7MBa5fDdeHikpGvvfPi2RN0Q326AwV-obVpZu2iAc5ojoL_Xkzn_wSrB4JX4qf1KgdDec'
+}
+Captain 697f81b120f7a27660b549db is now on duty.🫡

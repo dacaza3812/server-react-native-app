@@ -1,6 +1,6 @@
 const geolib = require("geolib");
 const jwt = require("jsonwebtoken");
-const User = require("../../models/User");
+const UserV1 = require("../../models/UserV1");
 const { redis } = require("../../utils/redisClient");
 
 // Objeto para registrar los rideId a los que ya se envió la notificación
@@ -25,7 +25,7 @@ const socketAuthMiddleware = async (socket, next) => {
   }
   try {
     const payload = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
-    const user = await User.findById(payload.id);
+    const user = await UserV1.findById(payload.id);
     if (!user) {
       return next(new Error("Authentication invalid: User not found"));
     }

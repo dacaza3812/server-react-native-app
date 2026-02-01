@@ -16,6 +16,7 @@ const auth = async (req, res) => {
     dateOfBirth,
     gender,
     dni,
+    vehicle,
   } = req.body;
 
   if (!phone) {
@@ -62,6 +63,14 @@ const auth = async (req, res) => {
         }
       });
 
+      // Update vehicle if provided
+      if (vehicle) {
+        if (vehicle.type !== undefined) user.vehicle.type = vehicle.type;
+        if (vehicle.licensePlate !== undefined) user.vehicle.licensePlate = vehicle.licensePlate;
+        if (vehicle.color !== undefined) user.vehicle.color = vehicle.color;
+        if (vehicle.model !== undefined) user.vehicle.model = vehicle.model;
+      }
+
       if (firebasePushToken && firebasePushToken !== user.firebasePushToken) {
         user.firebasePushToken = firebasePushToken;
       }
@@ -92,6 +101,7 @@ const auth = async (req, res) => {
         gender,
         dni,
       },
+      vehicle: vehicle || {},
     });
 
     await user.save();

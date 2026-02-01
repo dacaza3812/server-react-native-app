@@ -74,11 +74,8 @@ const start = async () => {
   try {
     await connectDB(process.env.MONGO_URI);
 
-    // Uncomment this and comment below one if you want to run on ip address so that you can
-    // access api in physical device
-
-    // server.listen(process.env.PORT || 3000, "0.0.0.0", () =>
-    server.listen(process.env.PORT || 3000, () =>
+    // Listen on all interfaces for external access
+    server.listen(process.env.PORT || 3000, "0.0.0.0", () =>
       console.log(
         `HTTP server is running on port ${
           process.env.PORT || 3000

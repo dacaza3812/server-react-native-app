@@ -1,12 +1,13 @@
 import express from "express";
-import authMiddleware from "../../middleware/authenticationV1";
-import {
+const router = express.Router();
+
+const {
   getSellerProfile,
   updateSellerProfile,
   getSellerStores,
-} from "../../controllers/v1/seller";
+} = require("../../controllers/v1/seller");
 
-const router = express.Router();
+const authMiddleware = require("../../middleware/authenticationV1").default || require("../../middleware/authenticationV1");
 
 router.get("/profile", authMiddleware, getSellerProfile);
 router.get("/stores", authMiddleware, getSellerStores);

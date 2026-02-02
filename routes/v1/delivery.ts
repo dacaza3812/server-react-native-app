@@ -1,6 +1,11 @@
 import express from "express";
-import authMiddleware from "../../middleware/authenticationV1";
-import {
+const router = express.Router();
+
+// Importar middleware con require para compatibilidad
+const authMiddleware = require("../../middleware/authenticationV1").default || require("../../middleware/authenticationV1");
+
+// Importar controladores
+const {
   createDelivery,
   getMyDeliveries,
   getDeliveryById,
@@ -8,9 +13,7 @@ import {
   cancelDelivery,
   rateDelivery,
   trackDelivery,
-} from "../../controllers/v1/delivery";
-
-const router = express.Router();
+} = require("../../controllers/v1/delivery");
 
 router.get("/track/:trackingCode", trackDelivery);
 

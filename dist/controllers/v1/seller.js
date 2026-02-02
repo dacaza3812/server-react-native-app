@@ -1,132 +1,49 @@
-const UserV1 = require("../../models/UserV1");
-const Store = require("../../models/Store");
-const { NotFoundError, BadRequestError } = require("../../errors");
-const { StatusCodes } = require("http-status-codes");
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.getSellerStores = exports.updateSellerProfile = exports.getSellerProfile = void 0;
+const http_status_codes_1 = require("http-status-codes");
+const UserV1_1 = __importDefault(require("../../models/UserV1"));
+const Store_1 = __importDefault(require("../../models/Store"));
+const errors_1 = require("../../errors");
 const getSellerProfile = async (req, res) => {
-    const userId = req.user.id;
-    try {
-        const seller = await UserV1.findById(userId);
-        if (!seller) {
-            throw new NotFoundError("Seller not found");
-        }
-        if (seller.role !== "store_owner") {
-            throw new BadRequestError("User is not a seller");
-        }
-        res.status(StatusCodes.OK).json({
-            message: "Seller profile retrieved successfully",
-            seller: {
-                id: seller._id,
-                phone: seller.phone,
-                profile: seller.profile,
-                seller: seller.seller,
-                stores: seller.stores,
-            },
-        });
+    const seller = await UserV1_1.default.findById(req.user.id)
+        .select("-password")
+        .populate("stores");
+    if (!seller || seller.role !== "store_owner") {
+        throw new errors_1.NotFoundError("Seller not found");
     }
-    catch (error) {
-        console.error("Error retrieving seller profile:", error);
-        throw error;
-    }
+    res.status(http_status_codes_1.StatusCodes.OK).json({
+        message: "Seller profile retrieved successfully",
+        seller,
+    });
 };
-const getSellerById = async (req, res) => {
-    const { id } = req.params;
-    if (!id) {
-        throw new BadRequestError("Seller ID is required");
-    }
-    try {
-        const seller = await UserV1.findById(id);
-        if (!seller) {
-            throw new NotFoundError("Seller not found");
-        }
-        if (seller.role !== "store_owner") {
-            throw new BadRequestError("User is not a seller");
-        }
-        const stores = await Store.find({ owner: id })
-            .select("name description logo banner address isActive categories rating totalOrders");
-        res.status(StatusCodes.OK).json({
-            message: "Seller retrieved successfully",
-            seller: {
-                id: seller._id,
-                profile: seller.profile,
-                seller: seller.seller,
-                stores,
-            },
-        });
-    }
-    catch (error) {
-        console.error("Error retrieving seller:", error);
-        throw error;
-    }
-};
+exports.getSellerProfile = getSellerProfile;
 const updateSellerProfile = async (req, res) => {
-    const userId = req.user.id;
-    const { name, lastName, email, avatarUrl, businessName, taxId } = req.body;
-    try {
-        const seller = await UserV1.findById(userId);
-        if (!seller) {
-            throw new NotFoundError("Seller not found");
-        }
-        if (seller.role !== "store_owner") {
-            throw new BadRequestError("User is not a seller");
-        }
-        if (name !== undefined)
-            seller.profile.name = name;
-        if (lastName !== undefined)
-            seller.profile.lastName = lastName;
-        if (email !== undefined)
-            seller.profile.email = email;
-        if (avatarUrl !== undefined)
-            seller.profile.avatarUrl = avatarUrl;
-        if (businessName !== undefined)
-            seller.seller.businessName = businessName;
-        if (taxId !== undefined)
-            seller.seller.taxId = taxId;
-        await seller.save();
-        res.status(StatusCodes.OK).json({
-            message: "Seller profile updated successfully",
-            seller: {
-                id: seller._id,
-                profile: seller.profile,
-                seller: seller.seller,
-            },
-        });
+    const { seller } = req.body;
+    const user = await UserV1_1.default.findById(req.user.id);
+    if (!user || user.role !== "store_owner") {
+        throw new errors_1.NotFoundError("Seller not found");
     }
-    catch (error) {
-        console.error("Error updating seller profile:", error);
-        throw new BadRequestError("Failed to update seller profile");
+    if (seller) {
+        Object.assign(user.seller, seller);
+        await user.save();
     }
+    res.status(http_status_codes_1.StatusCodes.OK).json({
+        message: "Seller profile updated successfully",
+        seller: user.seller,
+    });
 };
+exports.updateSellerProfile = updateSellerProfile;
 const getSellerStores = async (req, res) => {
-    const { id } = req.params;
-    if (!id) {
-        throw new BadRequestError("Seller ID is required");
-    }
-    try {
-        const seller = await UserV1.findById(id);
-        if (!seller) {
-            throw new NotFoundError("Seller not found");
-        }
-        if (seller.role !== "store_owner") {
-            throw new BadRequestError("User is not a seller");
-        }
-        const stores = await Store.find({ owner: id })
-            .select("name description logo banner address isActive categories rating totalOrders deliveryFee minimumOrderAmount averageDeliveryTime")
-            .sort({ createdAt: -1 });
-        res.status(StatusCodes.OK).json({
-            message: "Seller stores retrieved successfully",
-            count: stores.length,
-            stores,
-        });
-    }
-    catch (error) {
-        console.error("Error retrieving seller stores:", error);
-        throw new BadRequestError("Failed to retrieve seller stores");
-    }
+    const stores = await Store_1.default.find({ owner: req.user.id });
+    res.status(http_status_codes_1.StatusCodes.OK).json({
+        message: "Seller stores retrieved successfully",
+        count: stores.length,
+        stores,
+    });
 };
-module.exports = {
-    getSellerProfile,
-    getSellerById,
-    updateSellerProfile,
-    getSellerStores,
-};
+exports.getSellerStores = getSellerStores;
 //# sourceMappingURL=seller.js.map

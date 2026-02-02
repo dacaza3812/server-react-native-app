@@ -1,15 +1,15 @@
-const express = require("express");
-const {
+import express, { Request, Response, NextFunction, Router } from "express";
+import {
   createRide,
   updateRideStatus,
   acceptRide,
   getMyRides,
   cancelRide,
-} = require("../controllers/ride");
+} from "../controllers/ride";
 
-const router = express.Router();
+const router: Router = express.Router();
 
-router.use((req, res, next) => {
+router.use((req: Request, res: Response, next: NextFunction) => {
   req.io = req.app.get("io");
   next();
 });
@@ -20,4 +20,4 @@ router.patch("/update/:rideId", updateRideStatus);
 router.get("/rides", getMyRides);
 router.patch("/:rideId/cancel", cancelRide);
 
-module.exports = router;
+export default router;

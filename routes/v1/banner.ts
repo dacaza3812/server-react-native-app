@@ -1,10 +1,10 @@
 import express from "express";
-import {
+const router = express.Router();
+
+const {
   getBanners,
   getBannerByCity,
-} from "../../controllers/banner";
-
-const router = express.Router();
+} = require("../../controllers/banner");
 
 router.get("/", getBanners);
 router.post("/by-city", getBannerByCity);

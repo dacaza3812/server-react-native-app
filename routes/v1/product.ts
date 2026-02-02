@@ -1,6 +1,7 @@
 import express from "express";
-import authMiddleware from "../../middleware/authenticationV1";
-import {
+const router = express.Router();
+
+const {
   getCategories,
   createProduct,
   getStoreProducts,
@@ -11,9 +12,9 @@ import {
   updateProductInventory,
   getLowInventoryProducts,
   getFeaturedProducts,
-} from "../../controllers/v1/product";
+} = require("../../controllers/v1/product");
 
-const router = express.Router();
+const authMiddleware = require("../../middleware/authenticationV1").default || require("../../middleware/authenticationV1");
 
 router.get("/categories", getCategories);
 router.get("/search", searchProducts);

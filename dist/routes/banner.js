@@ -1,7 +1,11 @@
-const express = require("express");
-const router = express.Router();
-const multer = require("multer");
-const storage = multer.diskStorage({
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const multer_1 = __importDefault(require("multer"));
+const storage = multer_1.default.diskStorage({
     destination: (req, file, cb) => {
         cb(null, "uploads/");
     },
@@ -9,11 +13,10 @@ const storage = multer.diskStorage({
         cb(null, Date.now() + "-" + file.originalname);
     },
 });
-const upload = multer({ storage });
-const { createBanner, getBanners, getBannerByCity, deleteBanner } = require("../controllers/banner");
-router.post("/", upload.single("image"), createBanner);
-router.get("/", getBanners);
-router.post("/by-city", getBannerByCity);
-router.delete("/:id", deleteBanner);
-module.exports = router;
+const upload = (0, multer_1.default)({ storage });
+const banner_1 = require("../controllers/banner");
+const router = express_1.default.Router();
+router.get("/", banner_1.getBanners);
+router.post("/by-city", banner_1.getBannerByCity);
+exports.default = router;
 //# sourceMappingURL=banner.js.map

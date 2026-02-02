@@ -1,7 +1,7 @@
-import express from "express";
+import express, { Router } from "express";
 import { getVersion } from "../controllers/versionapp";
 
-const router = express.Router();
+const router: Router = express.Router();
 
 router.get("/", getVersion);
 

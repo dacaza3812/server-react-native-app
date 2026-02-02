@@ -1,15 +1,20 @@
-const express = require("express");
-const router = express.Router();
-const fs = require("fs");
-const path = require("path");
-const yaml = require("js-yaml");
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const fs_1 = __importDefault(require("fs"));
+const path_1 = __importDefault(require("path"));
+const js_yaml_1 = __importDefault(require("js-yaml"));
+const router = express_1.default.Router();
 const getApiDocs = (req, res) => {
     try {
-        const openApiPath = path.join(__dirname, "../openapi.yaml");
-        const fileContents = fs.readFileSync(openApiPath, "utf8");
+        const openApiPath = path_1.default.join(__dirname, "../openapi.yaml");
+        const fileContents = fs_1.default.readFileSync(openApiPath, "utf8");
         let apiDoc;
         try {
-            apiDoc = yaml.load(fileContents);
+            apiDoc = js_yaml_1.default.load(fileContents);
         }
         catch (yamlError) {
             if (yamlError.message.includes("duplicated mapping key")) {
@@ -29,7 +34,7 @@ const getApiDocs = (req, res) => {
                 const parameters = endpoint.parameters || [];
                 const requestBody = endpoint.requestBody;
                 const responses = endpoint.responses || {};
-                let requestStructure = {
+                const requestStructure = {
                     pathParameters: [],
                     queryParameters: [],
                     body: null,
@@ -201,5 +206,5 @@ const getApiDocs = (req, res) => {
     }
 };
 router.get("/", getApiDocs);
-module.exports = router;
+exports.default = router;
 //# sourceMappingURL=api-docs.js.map

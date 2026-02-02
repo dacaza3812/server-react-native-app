@@ -1,15 +1,16 @@
 import express from "express";
-import {
+const router = express.Router();
+
+const {
   register,
   login,
   refreshToken,
   updateProfile,
   updateCaptainProfile,
   changePassword,
-} from "../../controllers/v1/auth";
-import authMiddleware from "../../middleware/authenticationV1";
+} = require("../../controllers/v1/auth");
 
-const router = express.Router();
+const authMiddleware = require("../../middleware/authenticationV1").default || require("../../middleware/authenticationV1");
 
 router.post("/register", register);
 router.post("/login", login);

@@ -1,243 +1,107 @@
-const UserV1 = require("../../models/UserV1");
-const Ride = require("../../models/Ride");
-const Delivery = require("../../models/Delivery");
-const { NotFoundError, BadRequestError } = require("../../errors");
-const { StatusCodes } = require("http-status-codes");
-const getCaptainProfile = async (req, res) => {
-    const userId = req.user.id;
-    try {
-        const captain = await UserV1.findById(userId);
-        if (!captain) {
-            throw new NotFoundError("Captain not found");
-        }
-        if (captain.role !== "captain") {
-            throw new BadRequestError("User is not a captain");
-        }
-        res.status(StatusCodes.OK).json({
-            message: "Captain profile retrieved successfully",
-            captain: {
-                id: captain._id,
-                phone: captain.phone,
-                profile: captain.profile,
-                vehicle: captain.vehicle,
-                captain: captain.captain,
-                rating: captain.rating,
-                statistics: captain.statistics,
-                isVerified: captain.isVerified,
-            },
-        });
-    }
-    catch (error) {
-        console.error("Error retrieving captain profile:", error);
-        throw error;
-    }
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
 };
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.rateCaptain = exports.updateCaptainPricing = exports.updateCaptainProfile = exports.getCaptainRatings = exports.getCaptainById = exports.getCaptainProfile = void 0;
+const http_status_codes_1 = require("http-status-codes");
+const UserV1_1 = __importDefault(require("../../models/UserV1"));
+const errors_1 = require("../../errors");
+const getCaptainProfile = async (req, res) => {
+    const captain = await UserV1_1.default.findById(req.user.id).select("-password");
+    if (!captain || captain.role !== "captain") {
+        throw new errors_1.NotFoundError("Captain not found");
+    }
+    res.status(http_status_codes_1.StatusCodes.OK).json({
+        message: "Captain profile retrieved successfully",
+        captain,
+    });
+};
+exports.getCaptainProfile = getCaptainProfile;
 const getCaptainById = async (req, res) => {
     const { id } = req.params;
-    if (!id) {
-        throw new BadRequestError("Captain ID is required");
+    const captain = await UserV1_1.default.findById(id)
+        .select("profile vehicle rating statistics")
+        .where("role")
+        .equals("captain");
+    if (!captain) {
+        throw new errors_1.NotFoundError("Captain not found");
     }
-    try {
-        const captain = await UserV1.findById(id);
-        if (!captain) {
-            throw new NotFoundError("Captain not found");
-        }
-        if (captain.role !== "captain") {
-            throw new BadRequestError("User is not a captain");
-        }
-        res.status(StatusCodes.OK).json({
-            message: "Captain retrieved successfully",
-            captain: {
-                id: captain._id,
-                profile: captain.profile,
-                vehicle: captain.vehicle,
-                captain: captain.captain,
-                rating: captain.rating,
-                statistics: captain.statistics,
-                isVerified: captain.isVerified,
-            },
-        });
-    }
-    catch (error) {
-        console.error("Error retrieving captain:", error);
-        throw error;
-    }
+    res.status(http_status_codes_1.StatusCodes.OK).json({
+        message: "Captain retrieved successfully",
+        captain,
+    });
 };
+exports.getCaptainById = getCaptainById;
 const getCaptainRatings = async (req, res) => {
     const { id } = req.params;
-    if (!id) {
-        throw new BadRequestError("Captain ID is required");
+    const captain = await UserV1_1.default.findById(id).select("rating").where("role").equals("captain");
+    if (!captain) {
+        throw new errors_1.NotFoundError("Captain not found");
     }
-    try {
-        const captain = await UserV1.findById(id);
-        if (!captain) {
-            throw new NotFoundError("Captain not found");
-        }
-        if (captain.role !== "captain") {
-            throw new BadRequestError("User is not a captain");
-        }
-        const completedRides = await Ride.find({
-            captain: id,
-            status: "COMPLETED",
-        }).select("rating fare createdAt");
-        const completedDeliveries = await Delivery.find({
-            captain: id,
-            status: "DELIVERED",
-        }).select("rating review pricing.total createdAt");
-        const allRatings = [
-            ...completedRides.map(ride => ({
-                type: "ride",
-                rating: ride.rating,
-                createdAt: ride.createdAt,
-            })),
-            ...completedDeliveries.map(delivery => ({
-                type: "delivery",
-                rating: delivery.rating,
-                review: delivery.review,
-                createdAt: delivery.createdAt,
-            })),
-        ].sort((a, b) => b.createdAt - a.createdAt);
-        res.status(StatusCodes.OK).json({
-            message: "Captain ratings retrieved successfully",
-            captain: {
-                id: captain._id,
-                profile: captain.profile,
-                averageRating: captain.rating.average,
-                totalRatings: captain.rating.total,
-            },
-            ratings: allRatings,
-        });
-    }
-    catch (error) {
-        console.error("Error retrieving captain ratings:", error);
-        throw error;
-    }
+    res.status(http_status_codes_1.StatusCodes.OK).json({
+        message: "Captain ratings retrieved successfully",
+        rating: captain.rating,
+    });
 };
+exports.getCaptainRatings = getCaptainRatings;
 const updateCaptainProfile = async (req, res) => {
-    const userId = req.user.id;
-    const { name, lastName, email, avatarUrl, dni } = req.body;
-    try {
-        const captain = await UserV1.findById(userId);
-        if (!captain) {
-            throw new NotFoundError("Captain not found");
-        }
-        if (captain.role !== "captain") {
-            throw new BadRequestError("User is not a captain");
-        }
-        if (name !== undefined)
-            captain.profile.name = name;
-        if (lastName !== undefined)
-            captain.profile.lastName = lastName;
-        if (email !== undefined)
-            captain.profile.email = email;
-        if (avatarUrl !== undefined)
-            captain.profile.avatarUrl = avatarUrl;
-        if (dni !== undefined)
-            captain.profile.dni = dni;
-        await captain.save();
-        res.status(StatusCodes.OK).json({
-            message: "Captain profile updated successfully",
-            captain: {
-                id: captain._id,
-                profile: captain.profile,
-            },
-        });
+    const updates = req.body;
+    const captain = await UserV1_1.default.findById(req.user.id);
+    if (!captain || captain.role !== "captain") {
+        throw new errors_1.NotFoundError("Captain not found");
     }
-    catch (error) {
-        console.error("Error updating captain profile:", error);
-        throw new BadRequestError("Failed to update captain profile");
+    if (updates.profile) {
+        Object.assign(captain.profile, updates.profile);
     }
+    if (updates.vehicle) {
+        Object.assign(captain.vehicle, updates.vehicle);
+    }
+    await captain.save();
+    res.status(http_status_codes_1.StatusCodes.OK).json({
+        message: "Captain profile updated successfully",
+        captain: captain.toObject(),
+    });
 };
+exports.updateCaptainProfile = updateCaptainProfile;
 const updateCaptainPricing = async (req, res) => {
-    const userId = req.user.id;
     const { pricePerKm } = req.body;
-    if (!pricePerKm) {
-        throw new BadRequestError("pricePerKm is required");
+    const captain = await UserV1_1.default.findById(req.user.id);
+    if (!captain || captain.role !== "captain") {
+        throw new errors_1.NotFoundError("Captain not found");
     }
-    try {
-        const captain = await UserV1.findById(userId);
-        if (!captain) {
-            throw new NotFoundError("Captain not found");
-        }
-        if (captain.role !== "captain") {
-            throw new BadRequestError("User is not a captain");
-        }
-        if (pricePerKm.bike !== undefined) {
-            if (pricePerKm.bike < 0) {
-                throw new BadRequestError("bike price per km must be positive");
-            }
-            captain.captain.pricePerKm.bike = pricePerKm.bike;
-        }
-        if (pricePerKm.auto !== undefined) {
-            if (pricePerKm.auto < 0) {
-                throw new BadRequestError("auto price per km must be positive");
-            }
-            captain.captain.pricePerKm.auto = pricePerKm.auto;
-        }
-        if (pricePerKm.car !== undefined) {
-            if (pricePerKm.car < 0) {
-                throw new BadRequestError("car price per km must be positive");
-            }
-            captain.captain.pricePerKm.car = pricePerKm.car;
-        }
+    if (pricePerKm) {
+        captain.captain.pricePerKm = { ...captain.captain.pricePerKm, ...pricePerKm };
         await captain.save();
-        res.status(StatusCodes.OK).json({
-            message: "Captain pricing updated successfully",
-            captain: {
-                id: captain._id,
-                pricePerKm: captain.captain.pricePerKm,
-            },
-        });
     }
-    catch (error) {
-        console.error("Error updating captain pricing:", error);
-        throw error;
-    }
+    res.status(http_status_codes_1.StatusCodes.OK).json({
+        message: "Captain pricing updated successfully",
+        pricing: captain.captain.pricePerKm,
+    });
 };
+exports.updateCaptainPricing = updateCaptainPricing;
 const rateCaptain = async (req, res) => {
     const { id } = req.params;
-    const { rating, review } = req.body;
-    const userId = req.user.id;
-    if (!id) {
-        throw new BadRequestError("Captain ID is required");
-    }
+    const { rating, comment } = req.body;
     if (!rating || rating < 1 || rating > 5) {
-        throw new BadRequestError("Rating must be between 1 and 5");
+        throw new errors_1.BadRequestError("Rating must be between 1 and 5");
     }
-    try {
-        const captain = await UserV1.findById(id);
-        if (!captain) {
-            throw new NotFoundError("Captain not found");
-        }
-        if (captain.role !== "captain") {
-            throw new BadRequestError("User is not a captain");
-        }
-        const totalRatings = captain.rating.total + 1;
-        const totalScore = captain.rating.average * captain.rating.total + rating;
-        const newAverage = totalScore / totalRatings;
-        captain.rating.average = newAverage;
-        captain.rating.total = totalRatings;
-        await captain.save();
-        res.status(StatusCodes.OK).json({
-            message: "Captain rated successfully",
-            captain: {
-                id: captain._id,
-                profile: captain.profile,
-                rating: captain.rating,
-            },
-        });
+    const captain = await UserV1_1.default.findById(id).where("role").equals("captain");
+    if (!captain) {
+        throw new errors_1.NotFoundError("Captain not found");
     }
-    catch (error) {
-        console.error("Error rating captain:", error);
-        throw error;
-    }
+    const totalRatings = captain.rating.total + 1;
+    const totalScore = captain.rating.average * captain.rating.total + rating;
+    captain.rating.average = totalScore / totalRatings;
+    captain.rating.total = totalRatings;
+    await captain.save();
+    res.status(http_status_codes_1.StatusCodes.OK).json({
+        message: "Captain rated successfully",
+        captain: {
+            id: captain._id,
+            rating: captain.rating,
+        },
+    });
 };
-module.exports = {
-    getCaptainProfile,
-    getCaptainById,
-    getCaptainRatings,
-    updateCaptainProfile,
-    updateCaptainPricing,
-    rateCaptain,
-};
+exports.rateCaptain = rateCaptain;
 //# sourceMappingURL=captain.js.map

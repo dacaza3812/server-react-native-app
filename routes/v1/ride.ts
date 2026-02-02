@@ -1,15 +1,16 @@
 import express from "express";
-import authMiddleware from "../../middleware/authenticationV1";
-import {
+const router = express.Router();
+
+const {
   createRide,
   acceptRide,
   updateRideStatus,
   getMyRides,
   cancelRide,
   rateRide,
-} from "../../controllers/v1/ride";
+} = require("../../controllers/v1/ride");
 
-const router = express.Router();
+const authMiddleware = require("../../middleware/authenticationV1").default || require("../../middleware/authenticationV1");
 
 router.post("/create", authMiddleware, createRide);
 router.patch("/accept/:rideId", authMiddleware, acceptRide);

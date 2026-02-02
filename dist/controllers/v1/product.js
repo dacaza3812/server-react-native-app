@@ -1,348 +1,174 @@
-const ProductV1 = require("../../models/ProductV1");
-const Store = require("../../models/Store");
-const UserV1 = require("../../models/UserV1");
-const { NotFoundError, BadRequestError } = require("../../errors");
-const { StatusCodes } = require("http-status-codes");
-const { calculateDistance } = require("../../utils/mapUtils");
-const { PRODUCT_CATEGORIES } = require("../../utils/constants");
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.getFeaturedProducts = exports.getLowInventoryProducts = exports.updateProductInventory = exports.deleteProduct = exports.updateProduct = exports.getProductById = exports.searchProducts = exports.getStoreProducts = exports.createProduct = exports.getCategories = void 0;
+const http_status_codes_1 = require("http-status-codes");
+const ProductV1_1 = __importDefault(require("../../models/ProductV1"));
+const Store_1 = __importDefault(require("../../models/Store"));
+const errors_1 = require("../../errors");
+const constants_1 = require("../../utils/constants");
 const getCategories = async (req, res) => {
-    try {
-        res.status(StatusCodes.OK).json({
-            message: "Product categories retrieved successfully",
-            categories: PRODUCT_CATEGORIES,
-        });
-    }
-    catch (error) {
-        console.error("Error retrieving product categories:", error);
-        throw new BadRequestError("Failed to retrieve product categories");
-    }
+    res.status(http_status_codes_1.StatusCodes.OK).json({
+        message: "Product categories retrieved successfully",
+        categories: constants_1.PRODUCT_CATEGORIES,
+    });
 };
+exports.getCategories = getCategories;
 const createProduct = async (req, res) => {
-    const { name, description, price, category, images, thumbnail, weight, dimensions, inventory, lowInventoryThreshold, tags, specifications, nutritionFacts, allergens, dietaryInfo, discount, discountValidUntil, } = req.body;
     const { storeId } = req.params;
-    if (!storeId || !name || !price || !category || !images || !thumbnail || inventory === undefined) {
-        throw new BadRequestError("Store ID, name, price, category, images, thumbnail, and inventory are required");
+    const productData = req.body;
+    const store = await Store_1.default.findById(storeId);
+    if (!store) {
+        throw new errors_1.NotFoundError("Store not found");
     }
-    if (!PRODUCT_CATEGORIES.includes(category)) {
-        throw new BadRequestError(`Invalid category. Must be one of: ${PRODUCT_CATEGORIES.join(", ")}`);
+    if (store.owner.toString() !== req.user.id) {
+        throw new errors_1.BadRequestError("You don't own this store");
     }
-    try {
-        const store = await Store.findById(storeId);
-        if (!store) {
-            throw new NotFoundError("Store not found");
-        }
-        if (store.owner.toString() !== req.user.id) {
-            throw new BadRequestError("You don't own this store");
-        }
-        const product = new ProductV1({
-            name,
-            description,
-            price,
-            category,
-            store: storeId,
-            images,
-            thumbnail,
-            weight,
-            dimensions,
-            inventory,
-            lowInventoryThreshold,
-            tags,
-            specifications,
-            nutritionFacts,
-            allergens,
-            dietaryInfo,
-            discount,
-            discountValidUntil,
-        });
-        await product.save();
-        res.status(StatusCodes.CREATED).json({
-            message: "Product created successfully",
-            product,
-        });
+    if (!constants_1.PRODUCT_CATEGORIES.includes(productData.category)) {
+        throw new errors_1.BadRequestError(`Invalid category. Must be one of: ${constants_1.PRODUCT_CATEGORIES.join(", ")}`);
     }
-    catch (error) {
-        console.error("Error creating product:", error);
-        if (error.name === 'NotFoundError' || error.name === 'BadRequestError') {
-            throw error;
-        }
-        throw new BadRequestError("Failed to create product");
-    }
+    const product = new ProductV1_1.default({
+        ...productData,
+        store: storeId,
+    });
+    await product.save();
+    res.status(http_status_codes_1.StatusCodes.CREATED).json({
+        message: "Product created successfully",
+        product,
+    });
 };
+exports.createProduct = createProduct;
 const getStoreProducts = async (req, res) => {
     const { storeId } = req.params;
-    const { category, featured, available, active, limit = 20, page = 1 } = req.query;
-    if (!storeId) {
-        throw new BadRequestError("Store ID is required");
+    const { category, page = 1, limit = 20 } = req.query;
+    const query = { store: storeId, isActive: true };
+    if (category) {
+        query.category = category;
     }
-    try {
-        const query = { store: storeId };
-        if (category)
-            query.category = category;
-        if (featured !== undefined)
-            query.featured = featured === "true";
-        if (available !== undefined)
-            query.isAvailable = available === "true";
-        if (active !== undefined)
-            query.isActive = active === "true";
-        const products = await ProductV1.find(query)
-            .select("name price category thumbnail images rating salesCount featured discount isAvailable")
-            .sort({ createdAt: -1 })
-            .limit(limit * 1)
-            .skip((page - 1) * limit);
-        const total = await ProductV1.countDocuments(query);
-        res.status(StatusCodes.OK).json({
-            message: "Store products retrieved successfully",
-            count: products.length,
-            total,
-            products,
-        });
-    }
-    catch (error) {
-        console.error("Error retrieving store products:", error);
-        throw new BadRequestError("Failed to retrieve store products");
-    }
+    const products = await ProductV1_1.default.find(query)
+        .skip((Number(page) - 1) * Number(limit))
+        .limit(Number(limit))
+        .sort({ createdAt: -1 });
+    const total = await ProductV1_1.default.countDocuments(query);
+    res.status(http_status_codes_1.StatusCodes.OK).json({
+        message: "Store products retrieved successfully",
+        count: products.length,
+        total,
+        products,
+    });
 };
+exports.getStoreProducts = getStoreProducts;
 const searchProducts = async (req, res) => {
-    const { query, category, storeId, latitude, longitude, radius = 10000, limit = 20, page = 1 } = req.query;
-    if (!query && !category) {
-        throw new BadRequestError("Search query or category is required");
+    const { q, category, minPrice, maxPrice } = req.query;
+    const query = { isActive: true, isAvailable: true };
+    if (q) {
+        query.$text = { $search: q };
     }
-    try {
-        const searchQuery = {};
-        if (query) {
-            searchQuery.$text = { $search: query };
-        }
-        if (category) {
-            searchQuery.category = category;
-        }
-        if (storeId) {
-            searchQuery.store = storeId;
-        }
-        searchQuery.isAvailable = true;
-        searchQuery.isActive = true;
-        const products = await ProductV1.find(searchQuery)
-            .populate("store", "name logo address categories averageDeliveryTime")
-            .select("name price category thumbnail images rating salesCount featured discount isAvailable")
-            .sort({ $text: { $search: query }, rating: -1, salesCount: -1 })
-            .limit(limit * 1)
-            .skip((page - 1) * limit);
-        let filteredProducts = products;
-        if (latitude && longitude) {
-            filteredProducts = products
-                .map(product => {
-                const store = product.store;
-                if (!store || !store.address)
-                    return null;
-                const distance = calculateDistance(parseFloat(latitude), parseFloat(longitude), store.address.latitude, store.address.longitude);
-                return { ...product.toObject(), distance };
-            })
-                .filter(product => product && product.distance <= radius);
-        }
-        const total = filteredProducts.length;
-        res.status(StatusCodes.OK).json({
-            message: "Products search completed successfully",
-            count: filteredProducts.length,
-            total,
-            products: filteredProducts,
-        });
+    if (category) {
+        query.category = category;
     }
-    catch (error) {
-        console.error("Error searching products:", error);
-        throw new BadRequestError("Failed to search products");
+    if (minPrice || maxPrice) {
+        query.price = {};
+        if (minPrice)
+            query.price.$gte = Number(minPrice);
+        if (maxPrice)
+            query.price.$lte = Number(maxPrice);
     }
+    const products = await ProductV1_1.default.find(query).limit(50);
+    res.status(http_status_codes_1.StatusCodes.OK).json({
+        message: "Products search results",
+        count: products.length,
+        products,
+    });
 };
+exports.searchProducts = searchProducts;
 const getProductById = async (req, res) => {
     const { productId } = req.params;
-    if (!productId) {
-        throw new BadRequestError("Product ID is required");
+    const product = await ProductV1_1.default.findById(productId).populate("store", "name address");
+    if (!product) {
+        throw new errors_1.NotFoundError("Product not found");
     }
-    try {
-        const product = await ProductV1.findById(productId)
-            .populate("store", "name logo address categories averageDeliveryTime minimumOrderAmount deliveryFee taxRate");
-        if (!product) {
-            throw new NotFoundError("Product not found");
-        }
-        if (!product.store.isActive) {
-            throw new BadRequestError("Store is currently inactive");
-        }
-        res.status(StatusCodes.OK).json({
-            message: "Product retrieved successfully",
-            product,
-        });
-    }
-    catch (error) {
-        console.error("Error retrieving product:", error);
-        if (error.name === 'CastError') {
-            throw new NotFoundError("Product not found");
-        }
-        if (error.name === 'NotFoundError' || error.name === 'BadRequestError') {
-            throw error;
-        }
-        throw new BadRequestError("Failed to retrieve product");
-    }
+    res.status(http_status_codes_1.StatusCodes.OK).json({
+        message: "Product retrieved successfully",
+        product,
+    });
 };
+exports.getProductById = getProductById;
 const updateProduct = async (req, res) => {
     const { productId } = req.params;
     const updates = req.body;
-    if (!productId) {
-        throw new BadRequestError("Product ID is required");
+    const product = await ProductV1_1.default.findById(productId).populate("store");
+    if (!product) {
+        throw new errors_1.NotFoundError("Product not found");
     }
-    try {
-        const product = await ProductV1.findById(productId).populate("store");
-        if (!product) {
-            throw new NotFoundError("Product not found");
-        }
-        if (product.store.owner.toString() !== req.user.id) {
-            throw new BadRequestError("You don't have permission to update this product");
-        }
-        if (updates.category && !PRODUCT_CATEGORIES.includes(updates.category)) {
-            throw new BadRequestError(`Invalid category. Must be one of: ${PRODUCT_CATEGORIES.join(", ")}`);
-        }
-        delete updates.store;
-        delete updates.createdAt;
-        delete updates.updatedAt;
-        Object.assign(product, updates);
-        await product.save();
-        res.status(StatusCodes.OK).json({
-            message: "Product updated successfully",
-            product,
-        });
+    if (product.store.owner.toString() !== req.user.id) {
+        throw new errors_1.BadRequestError("You don't own this product");
     }
-    catch (error) {
-        console.error("Error updating product:", error);
-        throw new BadRequestError("Failed to update product");
-    }
+    Object.assign(product, updates);
+    await product.save();
+    res.status(http_status_codes_1.StatusCodes.OK).json({
+        message: "Product updated successfully",
+        product,
+    });
 };
+exports.updateProduct = updateProduct;
 const deleteProduct = async (req, res) => {
     const { productId } = req.params;
-    if (!productId) {
-        throw new BadRequestError("Product ID is required");
+    const product = await ProductV1_1.default.findById(productId).populate("store");
+    if (!product) {
+        throw new errors_1.NotFoundError("Product not found");
     }
-    try {
-        const product = await ProductV1.findById(productId).populate("store");
-        if (!product) {
-            throw new NotFoundError("Product not found");
-        }
-        if (product.store.owner.toString() !== req.user.id) {
-            throw new BadRequestError("You don't have permission to delete this product");
-        }
-        await ProductV1.findByIdAndDelete(productId);
-        res.status(StatusCodes.OK).json({
-            message: "Product deleted successfully",
-        });
+    if (product.store.owner.toString() !== req.user.id) {
+        throw new errors_1.BadRequestError("You don't own this product");
     }
-    catch (error) {
-        console.error("Error deleting product:", error);
-        throw new BadRequestError("Failed to delete product");
-    }
+    await ProductV1_1.default.findByIdAndDelete(productId);
+    res.status(http_status_codes_1.StatusCodes.OK).json({
+        message: "Product deleted successfully",
+    });
 };
+exports.deleteProduct = deleteProduct;
 const updateProductInventory = async (req, res) => {
     const { productId } = req.params;
-    const { quantity, operation = "set" } = req.body;
-    if (!productId || quantity === undefined) {
-        throw new BadRequestError("Product ID and quantity are required");
+    const { inventory } = req.body;
+    const product = await ProductV1_1.default.findById(productId).populate("store");
+    if (!product) {
+        throw new errors_1.NotFoundError("Product not found");
     }
-    if (!["set", "add", "subtract"].includes(operation)) {
-        throw new BadRequestError("Operation must be one of: set, add, subtract");
+    if (product.store.owner.toString() !== req.user.id) {
+        throw new errors_1.BadRequestError("You don't own this product");
     }
-    try {
-        const product = await ProductV1.findById(productId).populate("store");
-        if (!product) {
-            throw new NotFoundError("Product not found");
-        }
-        if (product.store.owner.toString() !== req.user.id) {
-            throw new BadRequestError("You don't have permission to update this product");
-        }
-        switch (operation) {
-            case "set":
-                product.inventory = quantity;
-                break;
-            case "add":
-                product.inventory += quantity;
-                break;
-            case "subtract":
-                const newInventory = product.inventory - quantity;
-                if (newInventory < 0) {
-                    throw new BadRequestError("Insufficient inventory");
-                }
-                product.inventory = newInventory;
-                break;
-        }
-        await product.save();
-        res.status(StatusCodes.OK).json({
-            message: "Product inventory updated successfully",
-            product,
-        });
-    }
-    catch (error) {
-        console.error("Error updating product inventory:", error);
-        throw new BadRequestError("Failed to update product inventory");
-    }
+    product.inventory = inventory;
+    await product.save();
+    res.status(http_status_codes_1.StatusCodes.OK).json({
+        message: "Product inventory updated successfully",
+        product,
+    });
 };
+exports.updateProductInventory = updateProductInventory;
 const getLowInventoryProducts = async (req, res) => {
     const { storeId } = req.params;
-    if (!storeId) {
-        throw new BadRequestError("Store ID is required");
-    }
-    try {
-        const store = await Store.findById(storeId);
-        if (!store) {
-            throw new NotFoundError("Store not found");
-        }
-        if (store.owner.toString() !== req.user.id) {
-            throw new BadRequestError("You don't own this store");
-        }
-        const products = await ProductV1.find({
-            store: storeId,
-            inventory: { $lte: "$lowInventoryThreshold" },
-            isActive: true,
-        })
-            .select("name price inventory lowInventoryThreshold category")
-            .sort({ inventory: 1 });
-        res.status(StatusCodes.OK).json({
-            message: "Low inventory products retrieved successfully",
-            count: products.length,
-            products,
-        });
-    }
-    catch (error) {
-        console.error("Error retrieving low inventory products:", error);
-        throw new BadRequestError("Failed to retrieve low inventory products");
-    }
+    const products = await ProductV1_1.default.find({
+        store: storeId,
+        $expr: { $lte: ["$inventory", "$lowInventoryThreshold"] },
+    });
+    res.status(http_status_codes_1.StatusCodes.OK).json({
+        message: "Low inventory products retrieved successfully",
+        count: products.length,
+        products,
+    });
 };
+exports.getLowInventoryProducts = getLowInventoryProducts;
 const getFeaturedProducts = async (req, res) => {
-    const { limit = 10 } = req.query;
-    try {
-        const products = await ProductV1.find({
-            featured: true,
-            isAvailable: true,
-            isActive: true,
-        })
-            .populate("store", "name logo address categories averageDeliveryTime")
-            .select("name price category thumbnail images rating salesCount featured discount")
-            .sort({ rating: -1, salesCount: -1 })
-            .limit(limit);
-        res.status(StatusCodes.OK).json({
-            message: "Featured products retrieved successfully",
-            count: products.length,
-            products,
-        });
-    }
-    catch (error) {
-        console.error("Error retrieving featured products:", error);
-        throw new BadRequestError("Failed to retrieve featured products");
-    }
+    const products = await ProductV1_1.default.find({ featured: true, isActive: true, isAvailable: true })
+        .populate("store", "name address")
+        .limit(20);
+    res.status(http_status_codes_1.StatusCodes.OK).json({
+        message: "Featured products retrieved successfully",
+        count: products.length,
+        products,
+    });
 };
-module.exports = {
-    getCategories,
-    createProduct,
-    getStoreProducts,
-    searchProducts,
-    getProductById,
-    updateProduct,
-    deleteProduct,
-    updateProductInventory,
-    getLowInventoryProducts,
-    getFeaturedProducts,
-};
+exports.getFeaturedProducts = getFeaturedProducts;
 //# sourceMappingURL=product.js.map

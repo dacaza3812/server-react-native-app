@@ -1,7 +1,41 @@
-const mongoose = require("mongoose");
-const Schema = mongoose.Schema;
-const jwt = require("jsonwebtoken");
-const userSchema = new Schema({
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+const mongoose_1 = __importStar(require("mongoose"));
+const jwt = __importStar(require("jsonwebtoken"));
+const userSchema = new mongoose_1.Schema({
     role: {
         type: String,
         enum: ["customer", "captain", "store_owner"],
@@ -15,25 +49,27 @@ const userSchema = new Schema({
     firebasePushToken: {
         type: String,
         required: false,
-        unique: false
+        unique: false,
     },
-    stores: [{
-            type: Schema.Types.ObjectId,
+    stores: [
+        {
+            type: mongoose_1.Schema.Types.ObjectId,
             ref: "Store",
-        }],
-    addresses: [{
-            type: {
-                street: String,
-                city: String,
-                state: String,
-                country: { type: String, default: "MX" },
-                postalCode: String,
-                latitude: Number,
-                longitude: Number,
-                isDefault: { type: Boolean, default: false },
-                label: { type: String, default: "Home" },
-            }
-        }],
+        },
+    ],
+    addresses: [
+        {
+            street: String,
+            city: String,
+            state: String,
+            country: { type: String, default: "MX" },
+            postalCode: String,
+            latitude: Number,
+            longitude: Number,
+            isDefault: { type: Boolean, default: false },
+            label: { type: String, default: "Home" },
+        },
+    ],
     deliveryPreferences: {
         defaultAddress: {
             street: String,
@@ -69,9 +105,11 @@ const userSchema = new Schema({
         type: Boolean,
         default: false,
     },
-    verificationDocuments: [{
+    verificationDocuments: [
+        {
             type: String,
-        }],
+        },
+    ],
     rating: {
         average: {
             type: Number,
@@ -95,15 +133,15 @@ const userSchema = new Schema({
 });
 userSchema.methods.createAccessToken = function () {
     return jwt.sign({
-        id: this._id,
+        id: this._id.toString(),
         phone: this.phone,
-    }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: process.env.ACCESS_TOKEN_EXPIRY });
+    }, process.env.ACCESS_TOKEN_SECRET || "fallback_secret", { expiresIn: (process.env.ACCESS_TOKEN_EXPIRY || "4d") });
 };
 userSchema.methods.createRefreshToken = function () {
-    return jwt.sign({ id: this._id, phone: this.phone }, process.env.REFRESH_TOKEN_SECRET, {
-        expiresIn: process.env.REFRESH_TOKEN_EXPIRY,
+    return jwt.sign({ id: this._id.toString(), phone: this.phone }, process.env.REFRESH_TOKEN_SECRET || "fallback_refresh_secret", {
+        expiresIn: (process.env.REFRESH_TOKEN_EXPIRY || "30d"),
     });
 };
-const User = mongoose.model("User", userSchema);
-module.exports = User;
+const User = mongoose_1.default.model("User", userSchema);
+exports.default = User;
 //# sourceMappingURL=User.js.map

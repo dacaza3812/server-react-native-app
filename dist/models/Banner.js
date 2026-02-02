@@ -34,69 +34,30 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
-const rideV1Schema = new mongoose_1.Schema({
-    vehicle: {
+const bannerSchema = new mongoose_1.Schema({
+    imageUrl: {
         type: String,
-        enum: ["bike", "auto", "cabEconomy", "cabPremium"],
         required: true,
     },
-    distance: {
-        type: Number,
+    title: {
+        type: String,
         required: true,
     },
-    pickup: {
-        address: { type: String, required: true },
-        latitude: { type: Number, required: true },
-        longitude: { type: Number, required: true },
-    },
-    drop: {
-        address: { type: String, required: true },
-        latitude: { type: Number, required: true },
-        longitude: { type: Number, required: true },
-    },
-    fare: {
-        type: Number,
-        required: true,
-    },
-    customer: {
-        type: mongoose_1.Schema.Types.ObjectId,
-        ref: "UserV1",
-        required: true,
-    },
-    captain: {
-        type: mongoose_1.Schema.Types.ObjectId,
-        ref: "UserV1",
-        default: null,
-    },
-    status: {
+    description: {
         type: String,
-        enum: ["SEARCHING_FOR_CAPTAIN", "START", "ARRIVED", "COMPLETED", "CANCELLED"],
-        default: "SEARCHING_FOR_CAPTAIN",
     },
-    otp: {
+    link: {
         type: String,
-        default: null,
     },
-    cancellationReason: {
-        type: String,
-        default: null,
-    },
-    cancelledBy: {
-        type: mongoose_1.Schema.Types.ObjectId,
-        ref: "UserV1",
-        default: null,
-    },
-    rating: {
-        type: Number,
-        default: null,
-    },
-    review: {
-        type: String,
-        default: null,
-    },
+    targetCity: [
+        {
+            type: String,
+            required: true,
+        },
+    ],
 }, {
     timestamps: true,
 });
-const RideV1 = mongoose_1.default.model("RideV1", rideV1Schema);
-exports.default = RideV1;
-//# sourceMappingURL=RideV1.js.map
+const Banner = mongoose_1.default.model("Banner", bannerSchema);
+exports.default = Banner;
+//# sourceMappingURL=Banner.js.map

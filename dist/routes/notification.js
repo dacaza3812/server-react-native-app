@@ -1,6 +1,11 @@
-const express = require("express");
-const { sendNotification } = require("../controllers/notifications");
-const router = express.Router();
-router.post("/", sendNotification);
-module.exports = router;
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const notifications_1 = require("../controllers/notifications");
+const router = express_1.default.Router();
+router.post("/", notifications_1.sendNotification);
+exports.default = router;
 //# sourceMappingURL=notification.js.map

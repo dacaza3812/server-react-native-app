@@ -1,15 +1,16 @@
 import express from "express";
-import authMiddleware from "../../middleware/authenticationV1";
-import {
+const router = express.Router();
+
+const {
   getCaptainProfile,
   getCaptainById,
   getCaptainRatings,
   updateCaptainProfile,
   updateCaptainPricing,
   rateCaptain,
-} from "../../controllers/v1/captain";
+} = require("../../controllers/v1/captain");
 
-const router = express.Router();
+const authMiddleware = require("../../middleware/authenticationV1").default || require("../../middleware/authenticationV1");
 
 router.get("/profile", authMiddleware, getCaptainProfile);
 router.get("/:id/profile", getCaptainById);

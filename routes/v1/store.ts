@@ -1,6 +1,7 @@
 import express from "express";
-import authMiddleware from "../../middleware/authenticationV1";
-import {
+const router = express.Router();
+
+const {
   createStore,
   getMyStores,
   getStoreById,
@@ -10,9 +11,9 @@ import {
   getStoreOrders,
   updateStoreStatus,
   getStoreStats,
-} from "../../controllers/v1/store";
+} = require("../../controllers/v1/store");
 
-const router = express.Router();
+const authMiddleware = require("../../middleware/authenticationV1").default || require("../../middleware/authenticationV1");
 
 router.post("/register", authMiddleware, createStore);
 router.get("/my-stores", authMiddleware, getMyStores);

@@ -6,9 +6,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 require("express-async-errors");
-const fs_1 = __importDefault(require("fs"));
-const path_1 = __importDefault(require("path"));
-const events_1 = __importDefault(require("events"));
 const express_1 = __importDefault(require("express"));
 const http_1 = __importDefault(require("http"));
 const socket_io_1 = require("socket.io");
@@ -26,21 +23,16 @@ const store_1 = __importDefault(require("./routes/store"));
 const product_1 = __importDefault(require("./routes/product"));
 const api_docs_1 = __importDefault(require("./routes/api-docs"));
 const v1_1 = __importDefault(require("./routes/v1"));
-const sockets_1 = __importDefault(require("./controllers/sockets"));
-events_1.default.defaultMaxListeners = 100;
+const main_1 = __importDefault(require("./controllers/sockets/main"));
 const app = (0, express_1.default)();
-app.use(express_1.default.json());
 const server = http_1.default.createServer(app);
 const io = new socket_io_1.Server(server, { cors: { origin: "*" } });
-const uploadsDir = path_1.default.join(__dirname, "uploads");
-if (!fs_1.default.existsSync(uploadsDir)) {
-    fs_1.default.mkdirSync(uploadsDir);
-}
+app.use(express_1.default.json());
 app.use((req, res, next) => {
     req.io = io;
     return next();
 });
-(0, sockets_1.default)(io);
+(0, main_1.default)(io);
 app.use("/auth", auth_1.default);
 app.use("/ride", authentication_1.default, ride_1.default);
 app.use("/delivery", delivery_1.default);
@@ -48,7 +40,6 @@ app.use("/store", store_1.default);
 app.use("/product", product_1.default);
 app.use("/version", version_1.default);
 app.use("/notification", notification_1.default);
-app.use("/uploads", express_1.default.static("uploads"));
 app.use("/banner", banner_1.default);
 app.use("/api-docs", api_docs_1.default);
 app.use("/api/v1", v1_1.default);
@@ -57,13 +48,13 @@ app.use(error_handler_1.default);
 const start = async () => {
     try {
         await (0, connect_1.default)(process.env.MONGO_URI);
-        const port = process.env.PORT || 3000;
-        server.listen(port, "0.0.0.0", () => {
-            console.log(`HTTP server is running on port ${port}`);
+        const PORT = process.env.PORT || 3000;
+        server.listen(PORT, "0.0.0.0", () => {
+            console.log(`HTTP server is running on port ${PORT}`);
         });
     }
     catch (error) {
-        console.error("Error starting server:", error);
+        console.log(error);
     }
 };
 exports.default = app;

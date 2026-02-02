@@ -1,44 +1,24 @@
-const Version = require("../models/VersionApp");
-const getVersionApp = async (req, res) => {
-    try {
-        const lastVersion = await Version.findOne().sort({ createdAt: -1 });
-        if (!lastVersion) {
-            return res.status(404).json({
-                message: "No se encontraron registros de versiones en la base de datos."
-            });
-        }
-        res.status(200).json({
-            message: "Versión recuperada exitosamente",
-            version: lastVersion
-        });
-    }
-    catch (error) {
-        console.error("Error al recuperar la versión:", error);
-        res.status(500).json({ error: "Error interno del servidor" });
-    }
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
 };
-const createVersionApp = async (req, res) => {
-    const { version, user, password } = req.body;
-    if (!version || !user || !password) {
-        return res.status(400).json({ error: "Los campos version, user y password son obligatorios" });
-    }
-    const userAdmin = "dacaza";
-    const passAdmin = "Dacaza3812*ñ";
-    if (user !== userAdmin || password !== passAdmin) {
-        return res.status(403).json({ error: "Acceso denegado" });
-    }
-    try {
-        const newVersion = new Version({ version });
-        await newVersion.save();
-        res.status(201).json({
-            message: "Versión creada exitosamente",
-            version: newVersion
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.getVersion = void 0;
+const http_status_codes_1 = require("http-status-codes");
+const VersionApp_1 = __importDefault(require("../models/VersionApp"));
+const getVersion = async (req, res) => {
+    const version = await VersionApp_1.default.findOne().sort({ createdAt: -1 });
+    if (!version) {
+        res.status(http_status_codes_1.StatusCodes.OK).json({
+            message: "No version records found",
+            version: null,
         });
+        return;
     }
-    catch (error) {
-        console.error(error);
-        res.status(500).json({ error: "Error en el servidor" });
-    }
+    res.status(http_status_codes_1.StatusCodes.OK).json({
+        message: "Version retrieved successfully",
+        version,
+    });
 };
-module.exports = { getVersionApp, createVersionApp };
+exports.getVersion = getVersion;
 //# sourceMappingURL=versionapp.js.map

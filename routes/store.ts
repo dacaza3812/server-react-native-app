@@ -1,5 +1,5 @@
-const express = require("express");
-const {
+import express, { Request, Response, NextFunction, Router } from "express";
+import {
   createStore,
   getMyStores,
   getStoreById,
@@ -9,13 +9,14 @@ const {
   getStoreOrders,
   updateStoreStatus,
   getStoreStats,
-} = require("../controllers/store");
-const authMiddleware = require("../middleware/authentication");
+} from "../controllers/store";
 
-const router = express.Router();
+const authMiddleware = require("../middleware/authentication").default || require("../middleware/authentication");
+
+const router: Router = express.Router();
 
 // Get delivery instance from app
-router.use((req, res, next) => {
+router.use((req: Request, res: Response, next: NextFunction) => {
   req.io = req.app.get("io");
   next();
 });
@@ -37,4 +38,4 @@ router.delete("/:storeId", authMiddleware, deleteStore);
 // Public route - MUST BE LAST to avoid catching other routes
 router.get("/:storeId", getStoreById);
 
-module.exports = router;
+export default router;

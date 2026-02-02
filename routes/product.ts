@@ -1,5 +1,5 @@
-const express = require("express");
-const {
+import express, { Request, Response, NextFunction, Router } from "express";
+import {
   createProduct,
   getStoreProducts,
   searchProducts,
@@ -9,13 +9,14 @@ const {
   updateProductInventory,
   getLowInventoryProducts,
   getFeaturedProducts,
-} = require("../controllers/product");
-const authMiddleware = require("../middleware/authentication");
+} from "../controllers/product";
 
-const router = express.Router();
+const authMiddleware = require("../middleware/authentication").default || require("../middleware/authentication");
+
+const router: Router = express.Router();
 
 // Get delivery instance from app
-router.use((req, res, next) => {
+router.use((req: Request, res: Response, next: NextFunction) => {
   req.io = req.app.get("io");
   next();
 });
@@ -33,4 +34,4 @@ router.patch("/:productId", authMiddleware, updateProduct);
 router.patch("/:productId/inventory", authMiddleware, updateProductInventory);
 router.delete("/:productId", authMiddleware, deleteProduct);
 
-module.exports = router;
+export default router;

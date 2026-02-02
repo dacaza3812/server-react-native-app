@@ -1,7 +1,28 @@
-const mongoose = require("mongoose");
-const Schema = mongoose.Schema;
+import mongoose, { Schema, Document, Model } from "mongoose";
 
-const rideSchema = new Schema(
+export interface ILocation {
+  address: string;
+  latitude: number;
+  longitude: number;
+}
+
+export interface IRide extends Document {
+  vehicle: "bike" | "auto" | "cabEconomy" | "cabPremium";
+  distance: number;
+  pickup: ILocation;
+  drop: ILocation;
+  fare: number;
+  customer: mongoose.Types.ObjectId;
+  captain?: mongoose.Types.ObjectId;
+  status: "SEARCHING_FOR_CAPTAIN" | "START" | "ARRIVED" | "COMPLETED" | "CANCELLED";
+  otp?: string;
+  cancellationReason?: string;
+  cancelledBy?: mongoose.Types.ObjectId;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const rideSchema = new Schema<IRide>(
   {
     vehicle: {
       type: String,
@@ -60,5 +81,5 @@ const rideSchema = new Schema(
   }
 );
 
-const Ride = mongoose.model("Ride", rideSchema);
-module.exports = Ride;
+const Ride: Model<IRide> = mongoose.model<IRide>("Ride", rideSchema);
+export default Ride;

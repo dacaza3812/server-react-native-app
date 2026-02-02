@@ -1,9 +1,8 @@
-// server/redisClient.js
-const Redis = require("ioredis");
+import Redis from "ioredis";
 
-// Conexión por defecto a localhost:6379. 
+// Conexión por defecto a localhost:6379.
 // Si usas nube, pon tu URL: new Redis("redis://:password@host:port")
-const redis = new Redis({
+export const redis = new Redis({
   host: "127.0.0.1",
   port: 6379,
   // No se requiere contraseña ni TLS en local
@@ -12,10 +11,10 @@ const redis = new Redis({
 });
 
 // Initialize Redis keys
-const initializeRedisKeys = async () => {
+const initializeRedisKeys = async (): Promise<void> => {
   const keys = [
     "drivers:locations",
-    "stores:locations", 
+    "stores:locations",
     "deliveries:active",
     "captains:availability",
     "customers:locations"
@@ -35,7 +34,7 @@ redis.on("connect", () => {
   initializeRedisKeys();
 });
 
-redis.on("error", (err) => {
+redis.on("error", (err: Error) => {
   console.error("❌ Error de conexión en Redis:", err);
 });
 
@@ -53,39 +52,37 @@ redis.on("end", () => {
 });
 
 // Helper functions for Redis operations
-const redisHelpers = {
+export const redisHelpers = {
   // Set with expiration
-  async setex(key, seconds, value) {
+  async setex(key: string, seconds: number, value: string): Promise<void> {
     await redis.setex(key, seconds, value);
   },
 
   // Get and set with pattern
-  async getSet(key, value) {
+  async getSet(key: string, value: string): Promise<string | null> {
     return await redis.getset(key, value);
   },
 
   // Increment with expiration
-  async incrEx(key, seconds) {
+  async incrEx(key: string, seconds: number): Promise<void> {
     await redis.incr(key);
     await redis.expire(key, seconds);
   },
 
   // Hash operations
-  async hsetnx(key, field, value) {
+  async hsetnx(key: string, field: string, value: string): Promise<number> {
     return await redis.hsetnx(key, field, value);
   },
 
   // Sorted set operations
-  async zaddEx(key, score, member, seconds) {
+  async zaddEx(key: string, score: number, member: string, seconds: number): Promise<void> {
     await redis.zadd(key, score, member);
     await redis.expire(key, seconds);
   },
 
   // List operations
-  async lpushEx(key, value, seconds) {
+  async lpushEx(key: string, value: string, seconds: number): Promise<void> {
     await redis.lpush(key, value);
     await redis.expire(key, seconds);
   }
 };
-
-module.exports = { redis, redisHelpers };

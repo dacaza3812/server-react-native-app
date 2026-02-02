@@ -1,0 +1,1 @@
+{"version":3,"file":"custom-api.js","sourceRoot":"","sources":["../../errors/custom-api.js"],"names":[],"mappings":"AAAA,MAAM,cAAe,SAAQ,KAAK;IAC9B,YAAY,OAAO;QACjB,KAAK,CAAC,OAAO,CAAC,CAAA;IAChB,CAAC;CACF;AAED,MAAM,CAAC,OAAO,GAAG,cAAc,CAAA"}

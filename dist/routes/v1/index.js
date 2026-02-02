@@ -1,0 +1,20 @@
+const express = require("express");
+const router = express.Router();
+const authRouter = require("./auth");
+const rideRouter = require("./ride");
+const captainRouter = require("./captain");
+const sellerRouter = require("./seller");
+const productRouter = require("./product");
+const storeRouter = require("./store");
+const deliveryRouter = require("./delivery");
+const bannerRouter = require("./banner");
+router.use("/auth", authRouter);
+router.use("/rides", rideRouter);
+router.use("/captains", captainRouter);
+router.use("/sellers", sellerRouter);
+router.use("/products", productRouter);
+router.use("/stores", storeRouter);
+router.use("/deliveries", deliveryRouter);
+router.use("/banners", bannerRouter);
+module.exports = router;
+//# sourceMappingURL=index.js.map

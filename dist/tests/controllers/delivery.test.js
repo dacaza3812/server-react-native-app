@@ -1,0 +1,221 @@
+const request = require('supertest');
+const app = require('../../app');
+const Delivery = require('../../models/Delivery');
+const Store = require('../../models/Store');
+const Product = require('../../models/Product');
+const User = require('../../models/User');
+const { generateDelivery, generateProduct, generateStore, generateUser, generateAccessToken } = require('../utils/generateTestData');
+describe('Delivery Controller Tests', () => {
+    let customerToken;
+    let customerId;
+    let storeId;
+    let productId;
+    let storeOwnerId;
+    beforeEach(async () => {
+        const storeOwnerData = generateUser('store_owner');
+        const storeOwner = new User(storeOwnerData);
+        await storeOwner.save();
+        storeOwnerId = storeOwner._id;
+        const customerData = generateUser('customer');
+        const customer = new User(customerData);
+        await customer.save();
+        customerId = customer._id;
+        customerToken = generateAccessToken(customerId, customerData.phone);
+        const storeData = generateStore(storeOwnerId);
+        const store = new Store(storeData);
+        await store.save();
+        storeId = store._id;
+        const productData = generateProduct(storeId);
+        productData.inventory = 100;
+        const product = new Product(productData);
+        await product.save();
+        productId = product._id;
+    });
+    describe('POST /delivery/create', () => {
+        it('should create a delivery order successfully', async () => {
+            const deliveryData = {
+                storeId: storeId.toString(),
+                items: [
+                    {
+                        productId: productId.toString(),
+                        quantity: 2
+                    }
+                ],
+                deliveryType: 'HOME_DELIVERY',
+                pickupAddress: {
+                    street: 'Store Street 123',
+                    city: 'Test City',
+                    state: 'State',
+                    country: 'MX',
+                    postalCode: '00000',
+                    latitude: 19.4326,
+                    longitude: -99.1332
+                },
+                deliveryAddress: {
+                    street: 'Customer Street 456',
+                    city: 'Test City',
+                    state: 'State',
+                    country: 'MX',
+                    postalCode: '00000',
+                    latitude: 19.4330,
+                    longitude: -99.1340
+                },
+                paymentMethod: 'cash'
+            };
+            const response = await request(app)
+                .post('/delivery/create')
+                .set('Authorization', `Bearer ${customerToken}`)
+                .send(deliveryData);
+            console.log('Response status:', response.status);
+            console.log('Response body:', JSON.stringify(response.body, null, 2));
+            expect(response.status).toBe(201);
+            expect(response.body.message).toBe('Delivery order created successfully');
+            expect(response.body.delivery).toBeDefined();
+            expect(response.body.delivery.orderNumber).toBeDefined();
+            expect(response.body.delivery.trackingCode).toBeDefined();
+        });
+        it('should fail without required fields', async () => {
+            const response = await request(app)
+                .post('/delivery/create')
+                .set('Authorization', `Bearer ${customerToken}`)
+                .send({
+                storeId: storeId.toString()
+            })
+                .expect(400);
+            expect(response.body.msg).toContain('required');
+        });
+        it('should fail for non-existent store', async () => {
+            const fakeStoreId = '507f1f77bcf86cd799439011';
+            const response = await request(app)
+                .post('/delivery/create')
+                .set('Authorization', `Bearer ${customerToken}`)
+                .send({
+                storeId: fakeStoreId,
+                items: [{ productId: productId.toString(), quantity: 1 }],
+                deliveryType: 'HOME_DELIVERY',
+                pickupAddress: { street: 'Test', city: 'Test', state: 'Test', country: 'MX', postalCode: '00000', latitude: 19.4326, longitude: -99.1332 },
+                deliveryAddress: { street: 'Test', city: 'Test', state: 'Test', country: 'MX', postalCode: '00000', latitude: 19.4330, longitude: -99.1340 },
+                paymentMethod: 'cash'
+            })
+                .expect(404);
+            expect(response.body.msg).toBe('Store not found');
+        });
+        it('should fail if product is not available', async () => {
+            const unavailableProduct = new Product({
+                ...generateProduct(storeId),
+                isAvailable: false
+            });
+            await unavailableProduct.save();
+            const response = await request(app)
+                .post('/delivery/create')
+                .set('Authorization', `Bearer ${customerToken}`)
+                .send({
+                storeId: storeId.toString(),
+                items: [{ productId: unavailableProduct._id.toString(), quantity: 1 }],
+                deliveryType: 'HOME_DELIVERY',
+                pickupAddress: { street: 'Test', city: 'Test', state: 'Test', country: 'MX', postalCode: '00000', latitude: 19.4326, longitude: -99.1332 },
+                deliveryAddress: { street: 'Test', city: 'Test', state: 'Test', country: 'MX', postalCode: '00000', latitude: 19.4330, longitude: -99.1340 },
+                paymentMethod: 'cash'
+            })
+                .expect(400);
+            expect(response.body.msg).toContain('not available');
+        });
+        it('should fail if insufficient inventory', async () => {
+            const lowInventoryProduct = new Product({
+                ...generateProduct(storeId),
+                inventory: 1
+            });
+            await lowInventoryProduct.save();
+            const response = await request(app)
+                .post('/delivery/create')
+                .set('Authorization', `Bearer ${customerToken}`)
+                .send({
+                storeId: storeId.toString(),
+                items: [{ productId: lowInventoryProduct._id.toString(), quantity: 5 }],
+                deliveryType: 'HOME_DELIVERY',
+                pickupAddress: { street: 'Test', city: 'Test', state: 'Test', country: 'MX', postalCode: '00000', latitude: 19.4326, longitude: -99.1332 },
+                deliveryAddress: { street: 'Test', city: 'Test', state: 'Test', country: 'MX', postalCode: '00000', latitude: 19.4330, longitude: -99.1340 },
+                paymentMethod: 'cash'
+            })
+                .expect(400);
+            expect(response.body.msg).toContain('inventory');
+        });
+    });
+    describe('GET /delivery/my-deliveries', () => {
+        it('should get deliveries for customer', async () => {
+            const deliveryData = generateDelivery(customerId, storeId, null, [
+                { product: productId, name: 'Test Product', price: 100, quantity: 1, subtotal: 100 }
+            ]);
+            const delivery = new Delivery(deliveryData);
+            await delivery.save();
+            const response = await request(app)
+                .get('/delivery/my-deliveries')
+                .set('Authorization', `Bearer ${customerToken}`)
+                .expect(200);
+            expect(response.body.message).toBe('Deliveries retrieved successfully');
+            expect(response.body.deliveries.length).toBeGreaterThan(0);
+        });
+        it('should filter deliveries by status', async () => {
+            const delivery1 = new Delivery(generateDelivery(customerId, storeId, null, [], productId));
+            delivery1.status = 'PENDING';
+            await delivery1.save();
+            const delivery2 = new Delivery(generateDelivery(customerId, storeId, null, [], productId));
+            delivery2.status = 'DELIVERED';
+            await delivery2.save();
+            const response = await request(app)
+                .get('/delivery/my-deliveries')
+                .set('Authorization', `Bearer ${customerToken}`)
+                .query({ status: 'PENDING' })
+                .expect(200);
+            expect(response.body.deliveries.every(d => d.status === 'PENDING')).toBe(true);
+        });
+    });
+    describe('GET /delivery/:deliveryId', () => {
+        it('should get delivery by ID', async () => {
+            const deliveryData = generateDelivery(customerId, storeId, null, [], productId);
+            const delivery = new Delivery(deliveryData);
+            await delivery.save();
+            const response = await request(app)
+                .get(`/delivery/${delivery._id}`)
+                .set('Authorization', `Bearer ${customerToken}`)
+                .expect(200);
+            expect(response.body.message).toBe('Delivery retrieved successfully');
+            expect(response.body.delivery._id.toString()).toBe(delivery._id.toString());
+        });
+        it('should fail for non-existent delivery', async () => {
+            const response = await request(app)
+                .get('/delivery/507f1f77bcf86cd799439011')
+                .set('Authorization', `Bearer ${customerToken}`)
+                .expect(404);
+            expect(response.body.msg).toBe('Delivery not found');
+        });
+    });
+    describe('PATCH /delivery/:deliveryId/cancel', () => {
+        it('should cancel delivery successfully', async () => {
+            const deliveryData = generateDelivery(customerId, storeId, null, [], productId);
+            deliveryData.status = 'PENDING';
+            const delivery = new Delivery(deliveryData);
+            await delivery.save();
+            const response = await request(app)
+                .patch(`/delivery/${delivery._id}/cancel`)
+                .set('Authorization', `Bearer ${customerToken}`)
+                .send({ reason: 'Changed my mind' })
+                .expect(200);
+            expect(response.body.message).toBe('Delivery cancelled successfully');
+            expect(response.body.delivery.status).toBe('CANCELLED');
+        });
+    });
+    describe('GET /delivery/track/:trackingCode', () => {
+        it('should track delivery by tracking code', async () => {
+            const deliveryData = generateDelivery(customerId, storeId, null, [], productId);
+            const delivery = new Delivery(deliveryData);
+            await delivery.save();
+            const response = await request(app)
+                .get(`/delivery/track/${delivery.trackingCode}`)
+                .expect(200);
+            expect(response.body.message).toBe('Tracking information retrieved successfully');
+            expect(response.body.delivery.trackingCode).toBe(delivery.trackingCode);
+        });
+    });
+});
+//# sourceMappingURL=delivery.test.js.map

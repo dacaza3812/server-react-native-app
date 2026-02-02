@@ -8,7 +8,7 @@ import {
   generateOTP,
   calculateFare,
 } from "../../utils/mapUtils";
-import { AuthenticatedRequest } from "../../middleware/authenticationV1";
+import { AuthenticatedRequestV1 as AuthenticatedRequest } from "../../middleware/authenticationV1";
 
 interface RideBody {
   vehicle: "bike" | "auto" | "cabEconomy" | "cabPremium";

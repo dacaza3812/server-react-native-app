@@ -18,6 +18,8 @@ export interface IRideV1 extends Document {
   otp?: string;
   cancellationReason?: string;
   cancelledBy?: mongoose.Types.ObjectId;
+  rating?: number;
+  review?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -73,6 +75,14 @@ const rideV1Schema = new Schema<IRideV1>(
     cancelledBy: {
       type: Schema.Types.ObjectId,
       ref: "UserV1",
+      default: null,
+    },
+    rating: {
+      type: Number,
+      default: null,
+    },
+    review: {
+      type: String,
       default: null,
     },
   },

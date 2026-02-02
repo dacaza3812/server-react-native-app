@@ -23,7 +23,7 @@ import apiDocsRouter from "./routes/api-docs";
 import v1Router from "./routes/v1";
 
 // Import socket handler
-import handleSocketConnection from "./controllers/sockets";
+import handleSocketConnection from "./controllers/sockets/main";
 
 const app: Application = express();
 const server = http.createServer(app);

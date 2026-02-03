@@ -1,4 +1,4 @@
-import express, { Request, Response, NextFunction, Router } from "express";
+import express, { Router } from "express";
 import {
   createRide,
   updateRideStatus,
@@ -9,10 +9,7 @@ import {
 
 const router: Router = express.Router();
 
-router.use((req: Request, res: Response, next: NextFunction) => {
-  req.io = req.app.get("io");
-  next();
-});
+// io ya está disponible en req.io desde el middleware global en app.ts
 
 router.post("/create", createRide);
 router.patch("/accept/:rideId", acceptRide);

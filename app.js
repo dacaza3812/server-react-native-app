@@ -9,6 +9,7 @@ EventEmitter.defaultMaxListeners = 100;
 
 const express = require("express");
 const http = require("http");
+const cors = require("cors");
 const socketIo = require("socket.io");
 const connectDB = require("./config/connect");
 const notFoundMiddleware = require("./middleware/not-found");
@@ -29,15 +30,20 @@ const bannerRouter = require("./routes/banner");
 const deliveryRouter = require("./routes/delivery");
 const storeRouter = require("./routes/store");
 const productRouter = require("./routes/product");
+const uploadRouter = require("./routes/upload");
 const apiDocsRouter = require("./routes/api-docs");
 
 // V1 Routers
 const v1Router = require("./routes/v1");
 
+// Admin Router
+const adminRouter = require("./routes/admin");
+
 // Import socket handler
 const handleSocketConnection = require("./controllers/sockets");
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 
 const server = http.createServer(app);
@@ -59,12 +65,14 @@ app.use("/ride", authMiddleware, rideRouter);
 app.use("/delivery", deliveryRouter);
 app.use("/store", storeRouter);
 app.use("/product", productRouter);
+app.use("/upload", uploadRouter);
 app.use("/version", versionRouter);
 app.use("/notification", notificationRouter);
 app.use("/uploads", express.static("uploads"));
 app.use("/banner", bannerRouter);
 app.use("/api-docs", apiDocsRouter);
 app.use("/api/v1", v1Router);
+app.use("/api/admin", adminRouter);
 
 // Middleware
 app.use(notFoundMiddleware);
@@ -75,10 +83,10 @@ const start = async () => {
     await connectDB(process.env.MONGO_URI);
 
     // Listen on all interfaces for external access
-    server.listen(process.env.PORT || 3000, "0.0.0.0", () =>
+    server.listen(process.env.PORT || 3050, "0.0.0.0", () =>
       console.log(
         `HTTP server is running on port ${
-          process.env.PORT || 3000
+          process.env.PORT || 3050
         }`
       )
     );

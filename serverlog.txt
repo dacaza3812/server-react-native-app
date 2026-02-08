@@ -1,17 +1,111 @@
-✅ Conectado exitosamente a Redis
-HTTP server is running on port 3000
-🟢 Redis listo para operaciones
-User Joined🔴:  {
-  id: '697f81b120f7a27660b549db',
-  role: 'captain',
-  firebasePushToken: 'dIq-zuVrSR-Y6hOQ15WNNi:APA91bGi-vufxZ_yKydLE_F9QS-QMsG3ZexI-NKzyYCWpIBH5d7MBa5fDdeHikpGvvfPi2RN0Q326AwV-obVpZu2iAc5ojoL_Xkzn_wSrB4JX4qf1KgdDec'
+Error creating store: Error: Store validation failed: contact.email: Path `contact.email` is required., contact.phone: Path 
+`contact.phone` is required., address.longitude: Path `address.longitude` is required., address.latitude: Path `address.latitude` is required., address.postalCode: Path `address.postalCode` is required., address.state: Path `address.state` is required., address.city: Path `address.city` is required., address.street: Path `address.street` is required.
+    at ValidationError.inspect (D:\rapido-final\rapido\RAPIDO_OPEN\rapido_server\node_modules\mongoose\lib\error\validation.js:52:26)
+    at formatValue (node:internal/util/inspect:897:19)
+    at inspect (node:internal/util/inspect:409:10)
+    at formatWithOptionsInternal (node:internal/util/inspect:2644:40)
+    at formatWithOptions (node:internal/util/inspect:2506:10)
+    at console.value (node:internal/console/constructor:356:14)
+    at console.error (node:internal/console/constructor:423:61)
+    at createStore (D:\rapido-final\rapido\RAPIDO_OPEN\rapido_server\controllers\v1\store.js:64:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5) {
+  errors: {
+    'contact.email': ValidatorError: Path `contact.email` is required.
+        at validate (D:\rapido-final\rapido\RAPIDO_OPEN\rapido_server\node_modules\mongoose\lib\schemaType.js:1385:13)      
+        at SchemaType.doValidate (D:\rapido-final\rapido\RAPIDO_OPEN\rapido_server\node_modules\mongoose\lib\schemaType.js:1369:7)
+        at D:\rapido-final\rapido\RAPIDO_OPEN\rapido_server\node_modules\mongoose\lib\document.js:3071:18
+        at process.processTicksAndRejections (node:internal/process/task_queues:84:11) {
+      properties: [Object],
+      kind: 'required',
+      path: 'contact.email',
+      value: undefined,
+      reason: undefined,
+      Symbol(mongoose#validatorError): true
+    },
+    'contact.phone': ValidatorError: Path `contact.phone` is required.
+        at validate (D:\rapido-final\rapido\RAPIDO_OPEN\rapido_server\node_modules\mongoose\lib\schemaType.js:1385:13)      
+        at SchemaType.doValidate (D:\rapido-final\rapido\RAPIDO_OPEN\rapido_server\node_modules\mongoose\lib\schemaType.js:1369:7)
+        at D:\rapido-final\rapido\RAPIDO_OPEN\rapido_server\node_modules\mongoose\lib\document.js:3071:18
+        at process.processTicksAndRejections (node:internal/process/task_queues:84:11) {
+      properties: [Object],
+      kind: 'required',
+      path: 'contact.phone',
+      value: undefined,
+      reason: undefined,
+      Symbol(mongoose#validatorError): true
+    },
+    'address.longitude': ValidatorError: Path `address.longitude` is required.
+        at validate (D:\rapido-final\rapido\RAPIDO_OPEN\rapido_server\node_modules\mongoose\lib\schemaType.js:1385:13)      
+        at SchemaType.doValidate (D:\rapido-final\rapido\RAPIDO_OPEN\rapido_server\node_modules\mongoose\lib\schemaType.js:1369:7)
+        at D:\rapido-final\rapido\RAPIDO_OPEN\rapido_server\node_modules\mongoose\lib\document.js:3071:18
+        at process.processTicksAndRejections (node:internal/process/task_queues:84:11) {
+      properties: [Object],
+      kind: 'required',
+      path: 'address.longitude',
+      value: undefined,
+      reason: undefined,
+      Symbol(mongoose#validatorError): true
+    },
+    'address.latitude': ValidatorError: Path `address.latitude` is required.
+        at validate (D:\rapido-final\rapido\RAPIDO_OPEN\rapido_server\node_modules\mongoose\lib\schemaType.js:1385:13)      
+        at SchemaType.doValidate (D:\rapido-final\rapido\RAPIDO_OPEN\rapido_server\node_modules\mongoose\lib\schemaType.js:1369:7)
+        at D:\rapido-final\rapido\RAPIDO_OPEN\rapido_server\node_modules\mongoose\lib\document.js:3071:18
+        at process.processTicksAndRejections (node:internal/process/task_queues:84:11) {
+      properties: [Object],
+      kind: 'required',
+      path: 'address.latitude',
+      value: undefined,
+      reason: undefined,
+      Symbol(mongoose#validatorError): true
+    },
+    'address.postalCode': ValidatorError: Path `address.postalCode` is required.
+        at validate (D:\rapido-final\rapido\RAPIDO_OPEN\rapido_server\node_modules\mongoose\lib\schemaType.js:1385:13)      
+        at SchemaType.doValidate (D:\rapido-final\rapido\RAPIDO_OPEN\rapido_server\node_modules\mongoose\lib\schemaType.js:1369:7)
+        at D:\rapido-final\rapido\RAPIDO_OPEN\rapido_server\node_modules\mongoose\lib\document.js:3071:18
+        at process.processTicksAndRejections (node:internal/process/task_queues:84:11) {
+      properties: [Object],
+      kind: 'required',
+      path: 'address.postalCode',
+      value: undefined,
+      reason: undefined,
+      Symbol(mongoose#validatorError): true
+    },
+    'address.state': ValidatorError: Path `address.state` is required.
+        at validate (D:\rapido-final\rapido\RAPIDO_OPEN\rapido_server\node_modules\mongoose\lib\schemaType.js:1385:13)      
+        at SchemaType.doValidate (D:\rapido-final\rapido\RAPIDO_OPEN\rapido_server\node_modules\mongoose\lib\schemaType.js:1369:7)
+        at D:\rapido-final\rapido\RAPIDO_OPEN\rapido_server\node_modules\mongoose\lib\document.js:3071:18
+        at process.processTicksAndRejections (node:internal/process/task_queues:84:11) {
+      properties: [Object],
+      kind: 'required',
+      path: 'address.state',
+      value: undefined,
+      reason: undefined,
+      Symbol(mongoose#validatorError): true
+    },
+    'address.city': ValidatorError: Path `address.city` is required.
+        at validate (D:\rapido-final\rapido\RAPIDO_OPEN\rapido_server\node_modules\mongoose\lib\schemaType.js:1385:13)      
+        at SchemaType.doValidate (D:\rapido-final\rapido\RAPIDO_OPEN\rapido_server\node_modules\mongoose\lib\schemaType.js:1369:7)
+        at D:\rapido-final\rapido\RAPIDO_OPEN\rapido_server\node_modules\mongoose\lib\document.js:3071:18
+        at process.processTicksAndRejections (node:internal/process/task_queues:84:11) {
+      properties: [Object],
+      kind: 'required',
+      path: 'address.city',
+      value: undefined,
+      reason: undefined,
+      Symbol(mongoose#validatorError): true
+    },
+    'address.street': ValidatorError: Path `address.street` is required.
+        at validate (D:\rapido-final\rapido\RAPIDO_OPEN\rapido_server\node_modules\mongoose\lib\schemaType.js:1385:13)      
+        at SchemaType.doValidate (D:\rapido-final\rapido\RAPIDO_OPEN\rapido_server\node_modules\mongoose\lib\schemaType.js:1369:7)
+        at D:\rapido-final\rapido\RAPIDO_OPEN\rapido_server\node_modules\mongoose\lib\document.js:3071:18
+        at process.processTicksAndRejections (node:internal/process/task_queues:84:11) {
+      properties: [Object],
+      kind: 'required',
+      path: 'address.street',
+      value: undefined,
+      reason: undefined,
+      Symbol(mongoose#validatorError): true
+    }
+  },
+  _message: 'Store validation failed'
 }
-Captain 697f81b120f7a27660b549db is now on duty.🫡
-Captain 697f81b120f7a27660b549db is now on duty.🫡
-captain 697f81b120f7a27660b549db disconnected.
-User Joined🔴:  {
-  id: '697f81b120f7a27660b549db',
-  role: 'captain',
-  firebasePushToken: 'dIq-zuVrSR-Y6hOQ15WNNi:APA91bGi-vufxZ_yKydLE_F9QS-QMsG3ZexI-NKzyYCWpIBH5d7MBa5fDdeHikpGvvfPi2RN0Q326AwV-obVpZu2iAc5ojoL_Xkzn_wSrB4JX4qf1KgdDec'
-}
-Captain 697f81b120f7a27660b549db is now on duty.🫡

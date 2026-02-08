@@ -19,3 +19,4 @@ coverage/
 # Misc
 nul
 *.tmp
+env.txt

@@ -1,0 +1,261 @@
+# ============================================
+# RAPIDO APP - Docker Compose con SSL (Let's Encrypt)
+# ============================================
+# Configuración completa con Nginx + SSL automático
+# Dominio: foxlawyer.net
+# Subdominios:
+#   - api.foxlawyer.net → API Backend
+#   - mapas.foxlawyer.net → TileServer
+#   - routing.foxlawyer.net → OSRM
+#   - places.foxlawyer.net → Nominatim
+# ============================================
+
+version: '3.8'
+
+services:
+  # ============================================
+  # NGINX - Reverse Proxy con SSL
+  # ============================================
+  nginx:
+    image: nginx:alpine
+    container_name: rapido-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - certbot-data:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
+    depends_on:
+      - api
+      - tileserver
+      - osrm
+      - nominatim
+    networks:
+      - rapido-network
+    command: >
+      sh -c "
+        echo 'Esperando a que los servicios estén listos...' &&
+        sleep 10 &&
+        nginx -g 'daemon off;'
+      "
+
+  # ============================================
+  # CERTBOT - SSL Automático con Let's Encrypt
+  # ============================================
+  certbot:
+    image: certbot/certbot:latest
+    container_name: rapido-certbot
+    volumes:
+      - certbot-data:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
+    entrypoint: >
+      sh -c "
+        echo 'Certbot listo. Ejecuta manualmente el script init-ssl.sh' &&
+        tail -f /dev/null
+      "
+    networks:
+      - rapido-network
+
+  # ============================================
+  # MONGODB
+  # ============================================
+  mongodb:
+    image: mongo:6.0
+    container_name: rapido-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD:-rapido123}
+      MONGO_INITDB_DATABASE: rapido
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - rapido-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  # ============================================
+  # REDIS
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: rapido-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - rapido-network
+    command: redis-server --appendonly yes
+
+  # ============================================
+  # TILESERVER GL
+  # ============================================
+  tileserver:
+    image: maptiler/tileserver-gl:latest
+    container_name: rapido-tileserver
+    restart: unless-stopped
+    volumes:
+      - tileserver_data:/data
+    environment:
+      - TILES_URL=https://geodata.maptiler.download/extracts/osm/v3.11/2020-02-10/central-america/osm-2020-02-10-v3.11_central-america_cuba.mbtiles
+    command: >
+      sh -c "
+        mkdir -p /data/tiles/fonts /data/tiles/styles &&
+        if [ ! -f /data/tiles/config.json ]; then
+          echo 'Creando configuración...' &&
+          cat > /data/tiles/config.json << 'EOF'
+        {
+          \"options\": {
+            \"paths\": {
+              \"root\": \"/data/tiles\",
+              \"fonts\": \"/data/tiles/fonts\",
+              \"styles\": \"/data/tiles/styles\",
+              \"mbtiles\": \"/data/tiles\"
+            }
+          },
+          \"data\": {
+            \"cuba\": {
+              \"mbtiles\": \"/data/tiles/cuba.mbtiles\"
+            }
+          }
+        }
+        EOF
+        fi &&
+        if [ ! -f /data/tiles/cuba.mbtiles ]; then
+          echo 'Descargando tiles de Cuba...' &&
+          wget -q --show-progress -O /data/tiles/cuba.mbtiles \"\${TILES_URL}\" || echo '⚠️ No se pudieron descargar tiles';
+        fi &&
+        exec tileserver-gl --config /data/tiles/config.json --port 8080
+      "
+    networks:
+      - rapido-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 300s
+
+  # ============================================
+  # OSRM BACKEND
+  # ============================================
+  osrm:
+    image: ghcr.io/project-osrm/osrm-backend:latest
+    container_name: rapido-osrm
+    restart: unless-stopped
+    volumes:
+      - osrm_data:/data
+    environment:
+      - OSM_URL=http://download.geofabrik.de/central-america/cuba-latest.osm.pbf
+    command: >
+      sh -c "
+        if [ ! -f /data/cuba-latest.osrm ]; then
+          echo '⬇️ Descargando datos OSM de Cuba...' &&
+          wget -q --show-progress -O /data/cuba-latest.osm.pbf \"\${OSM_URL}\" &&
+          echo '⏳ Procesando datos OSRM (15-20 min)...' &&
+          osrm-extract -p /opt/car.lua /data/cuba-latest.osm.pbf &&
+          osrm-partition /data/cuba-latest.osrm &&
+          osrm-customize /data/cuba-latest.osrm &&
+          rm /data/cuba-latest.osm.pbf &&
+          echo '✅ OSRM listo!';
+        fi &&
+        echo '🚀 Iniciando OSRM...' &&
+        exec osrm-routed --algorithm mld --port 5000 /data/cuba-latest.osrm
+      "
+    networks:
+      - rapido-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:5000/route/v1/driving/0,0;0,0"]
+      interval: 60s
+      timeout: 10s
+      retries: 5
+      start_period: 1800s
+
+  # ============================================
+  # NOMINATIM
+  # ============================================
+  nominatim:
+    image: mediagis/nominatim:5.2
+    container_name: rapido-nominatim
+    restart: unless-stopped
+    environment:
+      PBF_URL: http://download.geofabrik.de/central-america/cuba-latest.osm.pbf
+      REPLICATION_URL: https://download.geofabrik.de/central-america/cuba-updates/
+      IMPORT_STYLE: full
+      THREADS: 2
+    volumes:
+      - nominatim_data:/var/lib/postgresql/14/main
+    shm_size: '2gb'
+    networks:
+      - rapido-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/status"]
+      interval: 60s
+      timeout: 10s
+      retries: 5
+      start_period: 3600s
+
+  # ============================================
+  # API BACKEND
+  # ============================================
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: rapido-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      MONGO_URI: mongodb://${MONGODB_USERNAME:-admin}:${MONGODB_PASSWORD:-rapido123}@mongodb:27017/rapido?authSource=admin
+      REDIS_URL: redis://redis:6379
+      ACCESS_TOKEN_SECRET: ${JWT_SECRET:-changeme_secret_key_min_32_chars}
+      ACCESS_TOKEN_EXPIRY: 4d
+      REFRESH_TOKEN_SECRET: ${JWT_SECRET:-changeme_secret}_refresh
+      REFRESH_TOKEN_EXPIRY: 30d
+      PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
+      PRIVATE_KEY_ID: ${FIREBASE_PRIVATE_KEY_ID:-}
+      PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY:-}
+      CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL:-}
+      CLIENT_ID: ${FIREBASE_CLIENT_ID:-}
+      CLIENT_X509_CERT_URL: ${FIREBASE_CLIENT_X509_CERT_URL:-}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+      TILESERVER_URL: http://tileserver:8080
+      OSRM_URL: http://osrm:5000
+      NOMINATIM_URL: http://nominatim:8080
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - rapido-network
+    command: >
+      sh -c "
+        echo '⏳ Esperando MongoDB...' &&
+        until nc -z mongodb 27017; do sleep 2; done &&
+        echo '⏳ Esperando Redis...' &&
+        until nc -z redis 6379; do sleep 2; done &&
+        echo '🚀 Iniciando API...' &&
+        exec node app.js
+      "
+
+volumes:
+  mongodb_data:
+  redis_data:
+  tileserver_data:
+  osrm_data:
+  nominatim_data:
+  certbot-data:
+  certbot-www:
+
+networks:
+  rapido-network:
+    driver: bridge

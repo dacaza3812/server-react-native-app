@@ -83,10 +83,10 @@ const start = async () => {
     await connectDB(process.env.MONGO_URI);
 
     // Listen on all interfaces for external access
-    server.listen(process.env.PORT || 3050, "0.0.0.0", () =>
+    server.listen(process.env.PORT || 3000, "0.0.0.0", () =>
       console.log(
         `HTTP server is running on port ${
-          process.env.PORT || 3050
+          process.env.PORT || 3000
         }`
       )
     );

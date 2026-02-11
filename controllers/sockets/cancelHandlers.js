@@ -1,4 +1,4 @@
-const Ride = require("../../models/Ride");
+const RideV1 = require("../../models/RideV1");
 const Delivery = require("../../models/Delivery");
 
 /**
@@ -11,7 +11,7 @@ async function handleCancelRide(socket, io, user, rideId, rideNotificationSent, 
       return;
     }
     
-    const ride = await Ride.findById(rideId).populate("customer captain");
+    const ride = await RideV1.findById(rideId).populate("customer captain");
     if (!ride) {
       socket.emit("error", { message: "Ride not found" });
       return;

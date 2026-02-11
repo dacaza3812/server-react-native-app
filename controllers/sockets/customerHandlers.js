@@ -1,4 +1,4 @@
-const Ride = require("../../models/Ride");
+const RideV1 = require("../../models/RideV1");
 const Delivery = require("../../models/Delivery");
 const Store = require("../../models/Store");
 
@@ -26,7 +26,7 @@ async function handleSubscribeToZone(socket, user, customerCoords, getNearbyCapt
  */
 async function handleSearchCaptain(socket, io, user, rideId, rideNotificationSent, rideToCaptains, getNearbyCaptainsFromRedis) {
   try {
-    const ride = await Ride.findById(rideId).populate("customer captain");
+    const ride = await RideV1.findById(rideId).populate("customer captain");
     if (!ride) {
       socket.emit("error", { message: "Ride not found" });
       return;
@@ -105,7 +105,7 @@ async function handleSearchCaptain(socket, io, user, rideId, rideNotificationSen
       if (caps.length > 0 || retries >= MAX_RETRIES) {
         clearInterval(retryInterval);
         if (caps.length === 0 && retries >= MAX_RETRIES) {
-          await Ride.findByIdAndDelete(rideId);
+          await RideV1.findByIdAndDelete(rideId);
           socket.emit("error", {
             message: "No captains found for your ride within 5 minutes.",
           });

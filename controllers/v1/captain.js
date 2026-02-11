@@ -1,5 +1,5 @@
 const UserV1 = require("../../models/UserV1");
-const Ride = require("../../models/Ride");
+const RideV1 = require("../../models/RideV1");
 const Delivery = require("../../models/Delivery");
 const { NotFoundError, BadRequestError } = require("../../errors");
 const { StatusCodes } = require("http-status-codes");
@@ -91,7 +91,7 @@ const getCaptainRatings = async (req, res) => {
       throw new BadRequestError("User is not a captain");
     }
 
-    const completedRides = await Ride.find({
+    const completedRides = await RideV1.find({
       captain: id,
       status: "COMPLETED",
     }).select("rating fare createdAt");

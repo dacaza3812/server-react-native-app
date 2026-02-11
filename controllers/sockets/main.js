@@ -1,4 +1,4 @@
-const Ride = require("../../models/Ride");
+const RideV1 = require("../../models/RideV1");
 const { redis } = require("../../utils/redisClient");
 
 const {
@@ -125,11 +125,14 @@ const handleSocketConnection = (io) => {
 
     socket.on("subscribeRide", async (rideId) => {
       socket.join(`ride_${rideId}`);
+      console.log(`[Socket] User ${user.id} subscribed to ride ${rideId}`);
       try {
-        const rideData = await Ride.findById(rideId).populate("customer captain");
+        const rideData = await RideV1.findById(rideId).populate("customer captain");
+        console.log(`[Socket] Ride data found:`, rideData ? 'YES' : 'NO', 'ID:', rideId);
         socket.emit("rideData", rideData);
-      } catch {
-        socket.emit("error", "Failed to receive data");
+      } catch (error) {
+        console.error(`[Socket] Error fetching ride ${rideId}:`, error);
+        socket.emit("error", { message: "Failed to receive data", error: error.message });
       }
     });
 

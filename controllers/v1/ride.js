@@ -1,4 +1,4 @@
-const Ride = require("../../models/RideV1");
+const RideV1 = require("../../models/RideV1");
 const UserV1 = require("../../models/UserV1");
 const { BadRequestError, NotFoundError } = require("../../errors");
 const { StatusCodes } = require("http-status-codes");
@@ -55,7 +55,7 @@ const createRide = async (req, res) => {
     const distance = calculateDistance(pickupLat, pickupLon, dropLat, dropLon);
     const defaultFares = calculateFare(distance, vehicle);
 
-    const ride = new Ride({
+    const ride = new RideV1({
       vehicle,
       distance,
       fare: defaultFares[vehicle],
@@ -90,7 +90,7 @@ const acceptRide = async (req, res) => {
   }
 
   try {
-    let ride = await Ride.findById(rideId).populate("customer");
+    let ride = await RideV1.findById(rideId).populate("customer");
 
     if (!ride) {
       throw new NotFoundError("Ride not found");
@@ -139,7 +139,7 @@ const updateRideStatus = async (req, res) => {
   }
 
   try {
-    let ride = await Ride.findById(rideId).populate("customer captain");
+    let ride = await RideV1.findById(rideId).populate("customer captain");
 
     if (!ride) {
       throw new NotFoundError("Ride not found");
@@ -180,7 +180,7 @@ const getMyRides = async (req, res) => {
       query.status = status;
     }
 
-    const rides = await Ride.find(query)
+    const rides = await RideV1.find(query)
       .populate("customer", "profile.name profile.lastName phone")
       .populate("captain", "profile.name profile.lastName vehicle.type phone")
       .sort({ createdAt: -1 });
@@ -203,7 +203,7 @@ const cancelRide = async (req, res) => {
   const userRole = req.user.role;
 
   try {
-    const ride = await Ride.findById(rideId).populate("customer captain");
+    const ride = await RideV1.findById(rideId).populate("customer captain");
 
     if (!ride) {
       throw new NotFoundError("Ride not found");
@@ -217,8 +217,12 @@ const cancelRide = async (req, res) => {
       throw new BadRequestError("Cannot cancel a completed ride");
     }
 
+    // Si ya está cancelado, simplemente devolver éxito (para manejo offline)
     if (ride.status === "CANCELLED") {
-      throw new BadRequestError("Ride is already cancelled");
+      return res.status(StatusCodes.OK).json({
+        message: "Ride is already cancelled",
+        ride,
+      });
     }
 
     ride.status = "CANCELLED";
@@ -261,7 +265,7 @@ const rateRide = async (req, res) => {
   }
 
   try {
-    const ride = await Ride.findById(rideId)
+    const ride = await RideV1.findById(rideId)
       .populate("customer")
       .populate("captain");
 

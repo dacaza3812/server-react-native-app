@@ -59,6 +59,11 @@ app.use((req, res, next) => {
 // Initialize the WebSocket handling logic
 handleSocketConnection(io);
 
+// Health check endpoint
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "OK", timestamp: new Date().toISOString() });
+});
+
 // Routes
 app.use("/auth", authRouter);
 app.use("/ride", authMiddleware, rideRouter);

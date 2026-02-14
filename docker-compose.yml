@@ -1,0 +1,191 @@
+# ============================================
+# RAPIDO APP - Docker Compose Local (Sin SSL/Nginx)
+# ============================================
+# Configuración para desarrollo local sin proxy ni SSL
+# Todos los servicios expuestos directamente en puertos locales
+# ============================================
+
+version: '3.8'
+
+services:
+  # ============================================
+  # MONGODB
+  # ============================================
+  mongodb:
+    image: mongo:6.0
+    container_name: rapido-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD:-rapido123}
+      MONGO_INITDB_DATABASE: rapido
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - rapido-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  # ============================================
+  # REDIS
+  # ============================================
+  redis:
+    image: redis:7-alpine
+    container_name: rapido-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - rapido-network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ============================================
+  # API BACKEND
+  # ============================================
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rapido-api
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      MONGO_URI: mongodb://${MONGODB_USERNAME:-admin}:${MONGODB_PASSWORD:-rapido123}@mongodb:27017/rapido?authSource=admin
+      REDIS_URL: redis://redis:6379
+      ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET:-changeme_secret_key_min_32_chars}
+      ACCESS_TOKEN_EXPIRY: ${ACCESS_TOKEN_EXPIRY:-4d}
+      REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET:-changeme_secret}_refresh
+      REFRESH_TOKEN_EXPIRY: ${REFRESH_TOKEN_EXPIRY:-30d}
+      PROJECT_ID: ${PROJECT_ID:-}
+      PRIVATE_KEY_ID: ${PRIVATE_KEY_ID:-}
+      PRIVATE_KEY: ${PRIVATE_KEY:-}
+      CLIENT_EMAIL: ${CLIENT_EMAIL:-}
+      CLIENT_ID: ${CLIENT_ID:-}
+      AUTH_URI: ${AUTH_URI:-}
+      TOKEN_URI: ${TOKEN_URI:-}
+      AUTH_PROVIDER_X509_CERT_URL: ${AUTH_PROVIDER_X509_CERT_URL:-}
+      CLIENT_X509_CERT_URL: ${CLIENT_X509_CERT_URL:-}
+      UNIVERSE_DOMAIN: ${UNIVERSE_DOMAIN:-}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+      TILESERVER_URL: http://tileserver:8080
+      OSRM_URL: http://osrm:5000
+      NOMINATIM_URL: http://nominatim:8080
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - rapido-network
+
+  # ============================================
+  # TILESERVER GL
+  # ============================================
+  tileserver:
+    image: maptiler/tileserver-gl:latest
+    container_name: rapido-tileserver
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data/tiles:/data
+    networks:
+      - rapido-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ============================================
+  # OSRM BACKEND
+  # ============================================
+  osrm:
+    image: ghcr.io/project-osrm/osrm-backend:latest
+    container_name: rapido-osrm
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - osrm_data:/data
+    networks:
+      - rapido-network
+    command: >
+      sh -c "
+        cd /data &&
+        if [ ! -f cuba-latest.osrm ]; then
+          echo '⬇️ Descargando datos OSM de Cuba...' &&
+          wget -O cuba-latest.osm.pbf http://download.geofabrik.de/central-america/cuba-latest.osm.pbf &&
+          echo '⏳ Procesando datos OSRM (esto tarda 15-20 min)...' &&
+          osrm-extract -p /opt/car.lua cuba-latest.osm.pbf &&
+          osrm-partition cuba-latest.osrm &&
+          osrm-customize cuba-latest.osrm &&
+          rm cuba-latest.osm.pbf &&
+          echo '✅ OSRM listo!';
+        fi &&
+        echo '🚀 Iniciando servidor OSRM...' &&
+        osrm-routed --algorithm mld --port 5000 cuba-latest.osrm
+      "
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:5000/route/v1/driving/0,0;0,0"]
+      interval: 60s
+      timeout: 10s
+      retries: 5
+      start_period: 1800s
+
+  # ============================================
+  # NOMINATIM
+  # ============================================
+  nominatim:
+    image: mediagis/nominatim:5.2
+    container_name: rapido-nominatim
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+    environment:
+      PBF_URL: http://download.geofabrik.de/central-america/cuba-latest.osm.pbf
+      REPLICATION_URL: https://download.geofabrik.de/central-america/cuba-updates/
+      IMPORT_STYLE: full
+      THREADS: 2
+    volumes:
+      - nominatim_data:/var/lib/postgresql/14/main
+    shm_size: '2gb'
+    networks:
+      - rapido-network
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/status"]
+      interval: 60s
+      timeout: 10s
+      retries: 5
+      start_period: 3600s
+
+volumes:
+  mongodb_data:
+  redis_data:
+  tileserver_data:
+  osrm_data:
+  nominatim_data:
+
+networks:
+  rapido-network:
+    driver: bridge

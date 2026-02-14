@@ -1,14 +1,18 @@
 // server/redisClient.js
 const Redis = require("ioredis");
 
-// Conexión por defecto a localhost:6379. 
-// Si usas nube, pon tu URL: new Redis("redis://:password@host:port")
-const redis = new Redis({
-  host: "127.0.0.1",
-  port: 6379,
-  // No se requiere contraseña ni TLS en local
-  // Enable Redis JSON module if available (Redis 6.2+)
+// Usar REDIS_URL del environment o conectar a localhost por defecto
+const redisUrl = process.env.REDIS_URL || "redis://127.0.0.1:6379";
+
+console.log(`🔧 Conectando a Redis en: ${redisUrl.replace(/:\/\/.*@/, "://***@")}`);
+
+const redis = new Redis(redisUrl, {
   enableReadyCheck: false,
+  retryStrategy: (times) => {
+    const delay = Math.min(times * 50, 2000);
+    return delay;
+  },
+  maxRetriesPerRequest: 3,
 });
 
 // Initialize Redis keys

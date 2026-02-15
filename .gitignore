@@ -9,7 +9,7 @@ yarn-error.log
 # Testing & Coverage
 coverage/
 *.log
-
+cuba.mbtiles
 # IDE & OS
 .vscode/
 .idea/

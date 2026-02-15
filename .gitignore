@@ -9,7 +9,6 @@ yarn-error.log
 # Testing & Coverage
 coverage/
 *.log
-cuba.mbtiles
 # IDE & OS
 .vscode/
 .idea/
@@ -20,3 +19,6 @@ cuba.mbtiles
 nul
 *.tmp
 env.txt
+
+# Map tiles
+data/tiles/

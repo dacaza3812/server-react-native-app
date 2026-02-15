@@ -1,0 +1,44 @@
+# ============================================
+# Rapido API - Docker Compose para Dokploy
+# ============================================
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: rapido-api
+    container_name: rapido-api
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      MONGO_URI: mongodb://mongo:acheoehk9h2la1ij@rapido-mongodb-vrch2c:27017/rapido?authSource=admin
+      REDIS_URL: redis://default:g3mdjiybyt4bwhwf@rapido-redis-w6eieo:6379
+      ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET:-changeme_secret_key_min_32_chars}
+      ACCESS_TOKEN_EXPIRY: ${ACCESS_TOKEN_EXPIRY:-4d}
+      REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET:-changeme_secret_refresh}
+      REFRESH_TOKEN_EXPIRY: ${REFRESH_TOKEN_EXPIRY:-30d}
+      PROJECT_ID: ${PROJECT_ID:-}
+      PRIVATE_KEY_ID: ${PRIVATE_KEY_ID:-}
+      PRIVATE_KEY: ${PRIVATE_KEY:-}
+      CLIENT_EMAIL: ${CLIENT_EMAIL:-}
+      CLIENT_ID: ${CLIENT_ID:-}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME:-}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY:-}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET:-}
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.rapido-api.rule: "Host(`${DOMAIN:-api.dokploy.foxlawyer.net}`)"
+      traefik.http.routers.rapido-api.entrypoints: "https"
+      traefik.http.routers.rapido-api.tls: "true"
+      traefik.http.services.rapido-api.loadbalancer.server.port: "3000"
+      traefik.docker.network: "traefik"
+    networks:
+      - traefik
+
+networks:
+  traefik:
+    external: true

@@ -4,11 +4,17 @@
 
 FROM maptiler/tileserver-gl:latest
 
+# Cambiar a root para instalar paquetes
+USER root
+
 # Instalar herramientas necesarias
 RUN apt-get update && apt-get install -y \
     curl \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+# Volver al usuario original (node)
+USER node
 
 # Crear directorio de datos
 WORKDIR /data

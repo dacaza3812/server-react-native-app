@@ -16,17 +16,9 @@ RUN apt-get update && apt-get install -y \
 # Crear directorio de datos
 WORKDIR /data
 
-# Script de inicio que descarga Cuba si no existe (como root)
-RUN echo '#!/bin/sh\n\
-cd /data\n\
-if [ ! -f cuba.mbtiles ]; then\n\
-    echo "⬇️ Descargando datos de Cuba..."\n\
-    curl -L -o cuba.mbtiles "https://geodata.maptiler.download/extracts/osm/v3.11/2020-02-10/central-america/osm-2020-02-10-v3.11_central-america_cuba.mbtiles"\n\
-    echo "✅ Datos de Cuba descargados"\n\
-fi\n\
-echo "🚀 Iniciando TileServer con datos de Cuba..."\n\
-exec tileserver-gl --port 8080 /data/cuba.mbtiles\n\
-' > /start.sh && chmod +x /start.sh
+# Crear el script de inicio
+COPY start-tileserver.sh /start.sh
+RUN chmod +x /start.sh
 
 # Volver al usuario original (node)
 USER node

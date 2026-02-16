@@ -4,24 +4,24 @@
 
 FROM maptiler/tileserver-gl:latest
 
-# Cambiar a root para instalar paquetes
+# Cambiar a root para instalar paquetes y modificar
 USER root
 
-# Instalar herramientas necesarias
+# Instalar curl
 RUN apt-get update && apt-get install -y \
     curl \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Crear directorio de datos
-WORKDIR /data
-
-# Crear el script de inicio
+# Copiar el script de inicio personalizado
 COPY start-tileserver.sh /start.sh
 RUN chmod +x /start.sh
+
+# Volver al directorio de la app
+WORKDIR /usr/src/app
 
 # Exponer puerto
 EXPOSE 8080
 
-# Comando de inicio (ejecutar como root)
+# Comando de inicio
 CMD ["/start.sh"]

@@ -1,0 +1,45 @@
+# ============================================
+# OSRM Backend - Routing y Navegación
+# ============================================
+# Servicio de routing para calcular rutas de conducción
+# Puerto: 5000
+# ============================================
+
+version: '3.8'
+
+services:
+  osrm:
+    image: ghcr.io/project-osrm/osrm-backend:latest
+    container_name: rapido-osrm
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - osrm_data:/data
+    environment:
+      - NODE_ENV=production
+    command: >
+      sh -c "
+        cd /data &&
+        if [ ! -f cuba-latest.osrm ]; then
+          echo '⬇️ Descargando datos OSM de Cuba...' &&
+          wget -O cuba-latest.osm.pbf http://download.geofabrik.de/central-america/cuba-latest.osm.pbf &&
+          echo '⏳ Procesando datos OSRM (esto tarda 15-20 min)...' &&
+          osrm-extract -p /opt/car.lua cuba-latest.osm.pbf &&
+          osrm-partition cuba-latest.osrm &&
+          osrm-customize cuba-latest.osrm &&
+          rm cuba-latest.osm.pbf &&
+          echo '✅ OSRM listo!';
+        fi &&
+        echo '🚀 Iniciando servidor OSRM...' &&
+        osrm-routed --algorithm mld --port 5000 cuba-latest.osrm
+      "
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:5000/route/v1/driving/0,0;0,0"]
+      interval: 60s
+      timeout: 10s
+      retries: 5
+      start_period: 1800s
+
+volumes:
+  osrm_data:

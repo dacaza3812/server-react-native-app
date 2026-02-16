@@ -1,0 +1,33 @@
+# ============================================
+# Nominatim - Geocodificación y Búsqueda
+# ============================================
+# Servicio para convertir direcciones en coordenadas y viceversa
+# Puerto: 8080 (interno)
+# ============================================
+
+version: '3.8'
+
+services:
+  nominatim:
+    image: mediagis/nominatim:5.2
+    container_name: rapido-nominatim
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      PBF_URL: http://download.geofabrik.de/central-america/cuba-latest.osm.pbf
+      REPLICATION_URL: https://download.geofabrik.de/central-america/cuba-updates/
+      IMPORT_STYLE: full
+      THREADS: 2
+    volumes:
+      - nominatim_data:/var/lib/postgresql/14/main
+    shm_size: '2gb'
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/status"]
+      interval: 60s
+      timeout: 10s
+      retries: 5
+      start_period: 3600s
+
+volumes:
+  nominatim_data:

@@ -6,6 +6,7 @@
     "test": "jest --runInBand",
     "test:watch": "jest --watch",
     "start": "nodemon app.js",
+    "start:prod": "node app.js",
     "start:ts": "nodemon --exec ts-node app.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit"

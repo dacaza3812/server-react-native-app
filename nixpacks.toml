@@ -1,0 +1,32 @@
+# Nixpacks will auto-detect this as a Node.js project
+# This file ensures proper configuration for Dokploy deployment
+
+# Required environment variables (configure in Dokploy UI):
+# - MONGO_URI: MongoDB connection string
+# - REDIS_URL: Redis connection string (optional)
+# - ACCESS_TOKEN_SECRET: JWT secret key
+# - ACCESS_TOKEN_EXPIRY: JWT expiry (e.g., 4d)
+# - REFRESH_TOKEN_SECRET: JWT refresh secret
+# - REFRESH_TOKEN_EXPIRY: JWT refresh expiry (e.g., 30d)
+# - PROJECT_ID: Firebase project ID (optional)
+# - PRIVATE_KEY_ID: Firebase private key ID (optional)
+# - PRIVATE_KEY: Firebase private key (optional)
+# - CLIENT_EMAIL: Firebase client email (optional)
+# - CLIENT_ID: Firebase client ID (optional)
+# - CLOUDINARY_CLOUD_NAME: Cloudinary cloud name (optional)
+# - CLOUDINARY_API_KEY: Cloudinary API key (optional)
+# - CLOUDINARY_API_SECRET: Cloudinary API secret (optional)
+
+# Build configuration
+[phases.build]
+cmds = ["npm ci"]
+
+[phases.setup]
+nixpkgs = ["nodejs_20"]
+
+[start]
+cmd = "node app.js"
+
+[variables]
+NODE_ENV = "production"
+PORT = "3000"

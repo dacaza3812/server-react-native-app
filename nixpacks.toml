@@ -22,9 +22,9 @@
 [phases.setup]
 nixpkgs = ["nodejs_20"]
 
-# Build phase - clean cache and install dependencies
+# Build phase - use npm install instead of npm ci to avoid cache conflicts
 [phases.build]
-cmds = ["rm -rf /app/node_modules/.cache 2>/dev/null || true", "npm ci"]
+cmds = ["npm install --production"]
 
 [start]
 cmd = "npm run start:prod"

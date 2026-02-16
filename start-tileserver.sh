@@ -8,4 +8,19 @@ if [ ! -f cuba.mbtiles ]; then
 fi
 
 echo "🚀 Iniciando TileServer con datos de Cuba..."
-exec tileserver-gl --port 8080 /data/cuba.mbtiles
+
+# Buscar tileserver-gl en diferentes ubicaciones
+if [ -x "/usr/local/bin/tileserver-gl" ]; then
+    exec /usr/local/bin/tileserver-gl --port 8080 /data/cuba.mbtiles
+elif [ -x "/usr/bin/tileserver-gl" ]; then
+    exec /usr/bin/tileserver-gl --port 8080 /data/cuba.mbtiles
+else
+    # Intentar encontrar con which
+    TILESERVER=$(which tileserver-gl 2>/dev/null)
+    if [ -n "$TILESERVER" ]; then
+        exec "$TILESERVER" --port 8080 /data/cuba.mbtiles
+    else
+        echo "❌ Error: No se encontró tileserver-gl"
+        exit 1
+    fi
+fi

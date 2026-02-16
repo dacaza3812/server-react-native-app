@@ -20,11 +20,8 @@ WORKDIR /data
 COPY start-tileserver.sh /start.sh
 RUN chmod +x /start.sh
 
-# Volver al usuario original (node)
-USER node
-
 # Exponer puerto
 EXPOSE 8080
 
-# Comando de inicio
+# Comando de inicio (ejecutar como root)
 CMD ["/start.sh"]

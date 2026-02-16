@@ -29,6 +29,10 @@ cmds = ["npm install --production"]
 [start]
 cmd = "npm run start:prod"
 
+# Expose port for Traefik/Dokploy
+[expose]
+port = 3000
+
 [variables]
 NODE_ENV = "production"
 PORT = "3000"

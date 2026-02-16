@@ -142,7 +142,11 @@ const searchProducts = async (req, res) => {
     const searchQuery = {};
 
     if (query) {
-      searchQuery.$text = { $search: query };
+      searchQuery.$or = [
+        { name: { $regex: query, $options: "i" } },
+        { description: { $regex: query, $options: "i" } },
+        { tags: { $regex: query, $options: "i" } },
+      ];
     }
 
     if (category) {
@@ -156,10 +160,10 @@ const searchProducts = async (req, res) => {
     searchQuery.isAvailable = true;
     searchQuery.isActive = true;
 
-    const products = await ProductV1.find(searchQuery)
+    let products = await ProductV1.find(searchQuery)
       .populate("store", "name logo address categories averageDeliveryTime")
       .select("name price category thumbnail images rating salesCount featured discount isAvailable")
-      .sort({ $text: { $search: query }, rating: -1, salesCount: -1 })
+      .sort({ rating: -1, salesCount: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit);
 

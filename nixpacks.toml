@@ -18,12 +18,13 @@
 # - CLOUDINARY_API_KEY: Cloudinary API key (optional)
 # - CLOUDINARY_API_SECRET: Cloudinary API secret (optional)
 
-# Build configuration
-[phases.build]
-cmds = ["npm ci"]
-
+# Setup phase - must come before build
 [phases.setup]
 nixpkgs = ["nodejs_20"]
+
+# Build phase - clean cache and install dependencies
+[phases.build]
+cmds = ["rm -rf /app/node_modules/.cache 2>/dev/null || true", "npm ci"]
 
 [start]
 cmd = "npm run start:prod"

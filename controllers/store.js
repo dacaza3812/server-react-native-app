@@ -1,5 +1,6 @@
 const Store = require("../models/Store");
 const Product = require("../models/Product");
+const Delivery = require("../models/Delivery");
 const User = require("../models/User");
 const { NotFoundError, BadRequestError } = require("../errors");
 const { StatusCodes } = require("http-status-codes");

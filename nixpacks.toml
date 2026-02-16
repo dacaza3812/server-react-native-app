@@ -8,6 +8,7 @@
 # - ACCESS_TOKEN_EXPIRY: JWT expiry (e.g., 4d)
 # - REFRESH_TOKEN_SECRET: JWT refresh secret
 # - REFRESH_TOKEN_EXPIRY: JWT refresh expiry (e.g., 30d)
+# - API_BASE_URL: Base URL for API callbacks (e.g., https://your-api.com)
 # - PROJECT_ID: Firebase project ID (optional)
 # - PRIVATE_KEY_ID: Firebase private key ID (optional)
 # - PRIVATE_KEY: Firebase private key (optional)

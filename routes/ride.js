@@ -6,6 +6,7 @@ const {
   getMyRides,
   cancelRide,
 } = require("../controllers/ride");
+const authMiddleware = require("../middleware/authentication");
 
 const router = express.Router();
 
@@ -14,10 +15,10 @@ router.use((req, res, next) => {
   next();
 });
 
-router.post("/create", createRide);
-router.patch("/accept/:rideId", acceptRide);
-router.patch("/update/:rideId", updateRideStatus);
-router.get("/rides", getMyRides);
-router.patch("/:rideId/cancel", cancelRide);
+router.post("/create", authMiddleware, createRide);
+router.patch("/accept/:rideId", authMiddleware, acceptRide);
+router.patch("/update/:rideId", authMiddleware, updateRideStatus);
+router.get("/rides", authMiddleware, getMyRides);
+router.patch("/:rideId/cancel", authMiddleware, cancelRide);
 
 module.exports = router;

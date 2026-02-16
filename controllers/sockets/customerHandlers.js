@@ -57,8 +57,9 @@ async function handleSearchCaptain(socket, io, user, rideId, rideNotificationSen
         rideNotificationSent[rideId] = true;
         
         try {
+          const baseUrl = process.env.API_BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
           const response = await fetch(
-            "https://server-react-native-app-1.onrender.com/notification",
+            `${baseUrl}/notification`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },

@@ -90,9 +90,9 @@ const acceptRide = async (req, res) => {
 
     ride = await ride.populate("captain");
 
-    req.socket.to(`ride_${rideId}`).emit("rideUpdate", ride);
+    req.io.to(`ride_${rideId}`).emit("rideUpdate", ride);
 
-    req.socket.to(`ride_${rideId}`).emit("rideAccepted");
+    req.io.to(`ride_${rideId}`).emit("rideAccepted");
 
     res.status(StatusCodes.OK).json({
       message: "Ride accepted successfully",
@@ -130,7 +130,7 @@ const updateRideStatus = async (req, res) => {
     ride.status = status;
     await ride.save();
 
-    req.socket.to(`ride_${rideId}`).emit("rideUpdate", ride);
+    req.io.to(`ride_${rideId}`).emit("rideUpdate", ride);
 
     res.status(StatusCodes.OK).json({
       message: `Ride status updated to ${status}`,

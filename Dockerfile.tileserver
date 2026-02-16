@@ -13,13 +13,10 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Volver al usuario original (node)
-USER node
-
 # Crear directorio de datos
 WORKDIR /data
 
-# Script de inicio que descarga Cuba si no existe
+# Script de inicio que descarga Cuba si no existe (como root)
 RUN echo '#!/bin/sh\n\
 cd /data\n\
 if [ ! -f cuba.mbtiles ]; then\n\
@@ -30,6 +27,9 @@ fi\n\
 echo "🚀 Iniciando TileServer con datos de Cuba..."\n\
 exec tileserver-gl --port 8080 /data/cuba.mbtiles\n\
 ' > /start.sh && chmod +x /start.sh
+
+# Volver al usuario original (node)
+USER node
 
 # Exponer puerto
 EXPOSE 8080

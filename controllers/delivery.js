@@ -1,7 +1,7 @@
 const Delivery = require("../models/Delivery");
 const Store = require("../models/Store");
-const Product = require("../models/Product");
-const User = require("../models/User");
+const ProductV1 = require("../models/ProductV1");
+const UserV1 = require("../models/UserV1");
 const { NotFoundError, BadRequestError } = require("../errors");
 const { StatusCodes } = require("http-status-codes");
 const {
@@ -33,7 +33,7 @@ const createDelivery = async (req, res) => {
   const validItems = [];
   
   for (const item of items) {
-    const product = await Product.findById(item.productId).populate("store");
+    const product = await ProductV1.findById(item.productId).populate("store");
     if (!product || !product.isActive || !product.isAvailable) {
       throw new BadRequestError(`Product ${item.productId} is not available`);
     }
@@ -263,7 +263,7 @@ const updateDeliveryStatus = async (req, res) => {
       delivery.delivery.actualTime = new Date();
       // Update captain statistics
       if (delivery.captain) {
-        await User.findByIdAndUpdate(delivery.captain._id, {
+        await UserV1.findByIdAndUpdate(delivery.captain._id, {
           $inc: { "statistics.totalDeliveries": 1 },
         });
       }
@@ -274,7 +274,7 @@ const updateDeliveryStatus = async (req, res) => {
       delivery.cancelledBy = req.user.role;
       // Restore product inventory
       for (const item of delivery.items) {
-        await Product.findByIdAndUpdate(item.product, {
+    await ProductV1.findByIdAndUpdate(item.product, {
           $inc: { inventory: item.quantity },
         });
       }
@@ -411,7 +411,7 @@ const rateDelivery = async (req, res) => {
       const totalRatings = captain.rating.total + 1;
       const totalScore = captain.rating.average * captain.rating.total + rating;
       
-      await User.findByIdAndUpdate(captain._id, {
+      await UserV1.findByIdAndUpdate(captain._id, {
         "rating.average": totalScore / totalRatings,
         "rating.total": totalRatings,
       });

@@ -1,6 +1,7 @@
-const Product = require("../models/Product");
+const ProductV1 = require("../models/ProductV1");
 const Store = require("../models/Store");
-const User = require("../models/User");
+const UserV1 = require("../models/UserV1");
+const { calculateDistance } = require("../utils/mapUtils");
 const { NotFoundError, BadRequestError } = require("../errors");
 const { StatusCodes } = require("http-status-codes");
 
@@ -43,12 +44,12 @@ const createProduct = async (req, res) => {
     }
 
     // Check if product with same name exists in store
-    const existingProduct = await Product.findOne({ store: storeId, name });
+    const existingProduct = await ProductV1.findOne({ store: storeId, name });
     if (existingProduct) {
       throw new BadRequestError("Product with this name already exists in your store");
     }
 
-    const product = new Product({
+    const product = new ProductV1({
       name,
       description,
       price,
@@ -102,13 +103,13 @@ const getStoreProducts = async (req, res) => {
     if (available !== undefined) query.isAvailable = available === "true";
     if (active !== undefined) query.isActive = active === "true";
 
-    const products = await Product.find(query)
+    const products = await ProductV1.find(query)
       .select("name price category thumbnail images rating salesCount featured discount isAvailable")
       .sort({ createdAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit);
 
-    const total = await Product.countDocuments(query);
+    const total = await ProductV1.countDocuments(query);
 
     res.status(StatusCodes.OK).json({
       message: "Store products retrieved successfully",
@@ -151,7 +152,7 @@ const searchProducts = async (req, res) => {
     searchQuery.isAvailable = true;
     searchQuery.isActive = true;
 
-    const products = await Product.find(searchQuery)
+    const products = await ProductV1.find(searchQuery)
       .populate("store", "name logo address categories averageDeliveryTime")
       .select("name price category thumbnail images rating salesCount featured discount isAvailable")
       .sort({ $text: { $search: query }, rating: -1, salesCount: -1 })
@@ -200,7 +201,7 @@ const getProductById = async (req, res) => {
   }
 
   try {
-    const product = await Product.findById(productId)
+    const product = await ProductV1.findById(productId)
       .populate("store", "name logo address categories averageDeliveryTime minimumOrderAmount deliveryFee taxRate")
       .populate("store.owner", "profile.name phone email");
 
@@ -239,7 +240,7 @@ const updateProduct = async (req, res) => {
   }
 
   try {
-    const product = await Product.findById(productId).populate("store");
+    const product = await ProductV1.findById(productId).populate("store");
 
     if (!product) {
       throw new NotFoundError("Product not found");
@@ -277,7 +278,7 @@ const deleteProduct = async (req, res) => {
   }
 
   try {
-    const product = await Product.findById(productId).populate("store");
+    const product = await ProductV1.findById(productId).populate("store");
 
     if (!product) {
       throw new NotFoundError("Product not found");
@@ -288,7 +289,7 @@ const deleteProduct = async (req, res) => {
       throw new BadRequestError("You don't have permission to delete this product");
     }
 
-    await Product.findByIdAndDelete(productId);
+    await ProductV1.findByIdAndDelete(productId);
 
     res.status(StatusCodes.OK).json({
       message: "Product deleted successfully",
@@ -312,7 +313,7 @@ const updateProductInventory = async (req, res) => {
   }
 
   try {
-    const product = await Product.findById(productId).populate("store");
+    const product = await ProductV1.findById(productId).populate("store");
 
     if (!product) {
       throw new NotFoundError("Product not found");
@@ -370,7 +371,7 @@ const getLowInventoryProducts = async (req, res) => {
       throw new BadRequestError("You don't own this store");
     }
 
-    const products = await Product.find({
+    const products = await ProductV1.find({
       store: storeId,
       inventory: { $lte: "$lowInventoryThreshold" },
       isActive: true,
@@ -393,7 +394,7 @@ const getFeaturedProducts = async (req, res) => {
   const { limit = 10 } = req.query;
 
   try {
-    const products = await Product.find({
+    const products = await ProductV1.find({
       featured: true,
       isAvailable: true,
       isActive: true,

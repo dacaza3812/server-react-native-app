@@ -1,7 +1,7 @@
 const Store = require("../models/Store");
-const Product = require("../models/Product");
+const ProductV1 = require("../models/ProductV1");
 const Delivery = require("../models/Delivery");
-const User = require("../models/User");
+const UserV1 = require("../models/UserV1");
 const { NotFoundError, BadRequestError } = require("../errors");
 const { StatusCodes } = require("http-status-codes");
 const { calculateDistance } = require("../utils/mapUtils");
@@ -57,7 +57,7 @@ const createStore = async (req, res) => {
   await store.save();
 
   // Update user role to store_owner
-  await User.findByIdAndUpdate(owner, {
+  await UserV1.findByIdAndUpdate(owner, {
     role: "store_owner",
   });
 

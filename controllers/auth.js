@@ -1,5 +1,5 @@
 // controllers/User.js
-const User = require("../models/User");
+const UserV1 = require("../models/UserV1");
 const { StatusCodes } = require("http-status-codes");
 const { BadRequestError, UnauthenticatedError } = require("../errors");
 const jwt = require("jsonwebtoken");
@@ -9,7 +9,7 @@ const auth = async (req, res) => {
     phone,
     role,
     firebasePushToken,
-    forceSwitch = false   // NUEVO: flag opcional para forzar cambio de rol
+    forceSwitch = false
   } = req.body;
 
   if (!phone) {
@@ -23,12 +23,12 @@ const auth = async (req, res) => {
   try {
     // Desasocia firebasePushToken de otro usuario si es necesario
     if (firebasePushToken) {
-      const userWithToken = await User.findOne({
+      const userWithToken = await UserV1.findOne({
         firebasePushToken,
         phone: { $ne: phone },
       });
       if (userWithToken) {
-        await User.findByIdAndUpdate(
+        await UserV1.findByIdAndUpdate(
           userWithToken._id,
           { firebasePushToken: "" },
           { runValidators: false }
@@ -36,13 +36,12 @@ const auth = async (req, res) => {
       }
     }
 
-    let user = await User.findOne({ phone });
+    let user = await UserV1.findOne({ phone });
 
     if (user) {
       // Si rol existente difiere...
       if (user.role !== role) {
         if (forceSwitch) {
-          // —> forzamos el cambio de rol y guardamos
           user.role = role;
           await user.save();
         } else {
@@ -72,7 +71,7 @@ const auth = async (req, res) => {
     }
 
     // Si no existe, creamos nuevo usuario
-    user = new User({ phone, role, firebasePushToken });
+    user = new UserV1({ phone, role, firebasePushToken });
     await user.save();
 
     const accessToken = user.createAccessToken();
@@ -101,7 +100,7 @@ const refreshToken = async (req, res) => {
       refresh_token,
       process.env.REFRESH_TOKEN_SECRET
     );
-    const user = await User.findById(payload.id);
+    const user = await UserV1.findById(payload.id);
 
     if (!user) {
       throw new UnauthenticatedError("Invalid refresh token");

@@ -2,10 +2,10 @@ const { StatusCodes } = require("http-status-codes");
 const { BadRequestError, NotFoundError } = require("../errors");
 const jwt = require("jsonwebtoken");
 const UserV1 = require("../models/UserV1");
-const Ride = require("../models/Ride");
+const RideV1 = require("../models/RideV1");
 const Delivery = require("../models/Delivery");
 const Store = require("../models/Store");
-const Product = require("../models/Product");
+const ProductV1 = require("../models/ProductV1");
 const { redis } = require("../utils/redisClient");
 
 // Mock admin credentials
@@ -67,8 +67,8 @@ const getStats = async (req, res) => {
       UserV1.countDocuments({ role: "customer" }),
       UserV1.countDocuments({ role: "store_owner" }),
       redis.scard("captains:availability"),
-      Ride.countDocuments(),
-      Ride.countDocuments({
+      RideV1.countDocuments(),
+      RideV1.countDocuments({
         createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
       }),
       Delivery.countDocuments(),
@@ -77,11 +77,11 @@ const getStats = async (req, res) => {
       }),
       Store.countDocuments(),
       Store.countDocuments({ isActive: true }),
-      Product.countDocuments()
+      ProductV1.countDocuments()
     ]);
 
     // Get ride status counts
-    const rideStatuses = await Ride.aggregate([
+    const rideStatuses = await RideV1.aggregate([
       { $group: { _id: "$status", count: { $sum: 1 } } }
     ]);
 
@@ -277,12 +277,12 @@ const getRides = async (req, res) => {
   const skip = (parseInt(page) - 1) * parseInt(limit);
   
   const [rides, total] = await Promise.all([
-    Ride.find(query)
+    RideV1.find(query)
       .populate("customer captain", "profile phone")
       .skip(skip)
       .limit(parseInt(limit))
       .sort({ createdAt: -1 }),
-    Ride.countDocuments(query)
+    RideV1.countDocuments(query)
   ]);
 
   res.status(StatusCodes.OK).json({
@@ -297,7 +297,7 @@ const getRides = async (req, res) => {
 };
 
 const getRideById = async (req, res) => {
-  const ride = await Ride.findById(req.params.id)
+  const ride = await RideV1.findById(req.params.id)
     .populate("customer captain", "profile phone");
   if (!ride) {
     throw new NotFoundError("Ride not found");
@@ -307,7 +307,7 @@ const getRideById = async (req, res) => {
 
 const createRide = async (req, res) => {
   const ride = new Ride(req.body);
-  await ride.save();
+  await RideV1.save();
   res.status(StatusCodes.CREATED).json({
     message: "Ride created successfully",
     ride
@@ -315,7 +315,7 @@ const createRide = async (req, res) => {
 };
 
 const updateRide = async (req, res) => {
-  const ride = await Ride.findByIdAndUpdate(
+  const ride = await RideV1.findByIdAndUpdate(
     req.params.id,
     req.body,
     { new: true, runValidators: true }
@@ -330,7 +330,7 @@ const updateRide = async (req, res) => {
 };
 
 const deleteRide = async (req, res) => {
-  const ride = await Ride.findByIdAndDelete(req.params.id);
+  const ride = await RideV1.findByIdAndDelete(req.params.id);
   if (!ride) {
     throw new NotFoundError("Ride not found");
   }
@@ -491,7 +491,7 @@ const deleteStore = async (req, res) => {
     throw new NotFoundError("Store not found");
   }
   // Delete associated products
-  await Product.deleteMany({ store: req.params.id });
+  await ProductV1.deleteMany({ store: req.params.id });
   res.status(StatusCodes.OK).json({
     message: "Store and associated products deleted successfully"
   });
@@ -515,12 +515,12 @@ const getProducts = async (req, res) => {
   const skip = (parseInt(page) - 1) * parseInt(limit);
   
   const [products, total] = await Promise.all([
-    Product.find(query)
+    ProductV1.find(query)
       .populate("store", "name")
       .skip(skip)
       .limit(parseInt(limit))
       .sort({ createdAt: -1 }),
-    Product.countDocuments(query)
+    ProductV1.countDocuments(query)
   ]);
 
   res.status(StatusCodes.OK).json({
@@ -535,7 +535,7 @@ const getProducts = async (req, res) => {
 };
 
 const getProductById = async (req, res) => {
-  const product = await Product.findById(req.params.id)
+  const product = await ProductV1.findById(req.params.id)
     .populate("store", "name");
   if (!product) {
     throw new NotFoundError("Product not found");
@@ -545,7 +545,7 @@ const getProductById = async (req, res) => {
 
 const createProduct = async (req, res) => {
   const product = new Product(req.body);
-  await product.save();
+  await ProductV1.save();
   res.status(StatusCodes.CREATED).json({
     message: "Product created successfully",
     product
@@ -553,7 +553,7 @@ const createProduct = async (req, res) => {
 };
 
 const updateProduct = async (req, res) => {
-  const product = await Product.findByIdAndUpdate(
+  const product = await ProductV1.findByIdAndUpdate(
     req.params.id,
     req.body,
     { new: true, runValidators: true }
@@ -568,7 +568,7 @@ const updateProduct = async (req, res) => {
 };
 
 const deleteProduct = async (req, res) => {
-  const product = await Product.findByIdAndDelete(req.params.id);
+  const product = await ProductV1.findByIdAndDelete(req.params.id);
   if (!product) {
     throw new NotFoundError("Product not found");
   }

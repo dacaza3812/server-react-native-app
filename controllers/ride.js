@@ -1,4 +1,4 @@
-const Ride = require("../models/Ride");
+const RideV1 = require("../models/RideV1");
 const { BadRequestError, NotFoundError } = require("../errors");
 const { StatusCodes } = require("http-status-codes");
 const {
@@ -39,7 +39,7 @@ const createRide = async (req, res) => {
     const distance = calculateDistance(pickupLat, pickupLon, dropLat, dropLon);
     const fare = calculateFare(distance, vehicle);
 
-    const ride = new Ride({
+    const ride = new RideV1({
       vehicle,
       distance,
       fare: fare[vehicle],
@@ -74,7 +74,7 @@ const acceptRide = async (req, res) => {
   }
 
   try {
-    let ride = await Ride.findById(rideId).populate("customer");
+    let ride = await RideV1.findById(rideId).populate("customer");
 
     if (!ride) {
       throw new NotFoundError("Ride not found");
@@ -100,7 +100,6 @@ const acceptRide = async (req, res) => {
     });
   } catch (error) {
     console.error("Error accepting ride:", error);
-    // Re-throw custom errors as-is
     if (error.name === 'NotFoundError' || error.name === 'BadRequestError') {
       throw error;
     }
@@ -117,7 +116,7 @@ const updateRideStatus = async (req, res) => {
   }
 
   try {
-    let ride = await Ride.findById(rideId).populate("customer captain");
+    let ride = await RideV1.findById(rideId).populate("customer captain");
 
     if (!ride) {
       throw new NotFoundError("Ride not found");
@@ -138,7 +137,6 @@ const updateRideStatus = async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating ride status:", error);
-    // Re-throw custom errors as-is
     if (error.name === 'NotFoundError' || error.name === 'BadRequestError') {
       throw error;
     }
@@ -159,9 +157,9 @@ const getMyRides = async (req, res) => {
       query.status = status;
     }
 
-    const rides = await Ride.find(query)
-      .populate("customer", "name phone")
-      .populate("captain", "name phone")
+    const rides = await RideV1.find(query)
+      .populate("customer", "profile.name phone")
+      .populate("captain", "profile.name phone")
       .sort({ createdAt: -1 });
 
     res.status(StatusCodes.OK).json({
@@ -182,7 +180,7 @@ const cancelRide = async (req, res) => {
   const userRole = req.user.role;
 
   try {
-    const ride = await Ride.findById(rideId).populate("customer captain");
+    const ride = await RideV1.findById(rideId).populate("customer captain");
 
     if (!ride) {
       throw new NotFoundError("Ride not found");

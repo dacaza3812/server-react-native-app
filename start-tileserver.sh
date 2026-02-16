@@ -12,6 +12,7 @@ fi
 
 echo "🚀 Iniciando TileServer con datos de Cuba..."
 
-# Cambiar al directorio de la aplicación y ejecutar
+# Usar el entrypoint original de la imagen con nuestros datos
+export PORT=8080
 cd /usr/src/app
-exec node src/main.js --port 8080 /data/cuba.mbtiles
+exec /usr/src/app/docker-entrypoint.sh /data/cuba.mbtiles

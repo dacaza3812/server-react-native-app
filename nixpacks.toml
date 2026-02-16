@@ -26,7 +26,7 @@ cmds = ["npm ci"]
 nixpkgs = ["nodejs_20"]
 
 [start]
-cmd = "node app.js"
+cmd = "npm run start:prod"
 
 [variables]
 NODE_ENV = "production"

@@ -22,3 +22,4 @@ env.txt
 
 # Map tiles
 data/tiles/
+package-lock.json

@@ -9,18 +9,17 @@ fi
 
 echo "🚀 Iniciando TileServer con datos de Cuba..."
 
-# Buscar tileserver-gl en diferentes ubicaciones
-if [ -x "/usr/local/bin/tileserver-gl" ]; then
-    exec /usr/local/bin/tileserver-gl --port 8080 /data/cuba.mbtiles
-elif [ -x "/usr/bin/tileserver-gl" ]; then
-    exec /usr/bin/tileserver-gl --port 8080 /data/cuba.mbtiles
+# Buscar tileserver-gl
+TILESERVER=$(find / -name "tileserver-gl" -type f 2>/dev/null | head -1)
+
+if [ -n "$TILESERVER" ]; then
+    echo "✅ Encontrado tileserver-gl en: $TILESERVER"
+    exec "$TILESERVER" --port 8080 /data/cuba.mbtiles
 else
-    # Intentar encontrar con which
-    TILESERVER=$(which tileserver-gl 2>/dev/null)
-    if [ -n "$TILESERVER" ]; then
-        exec "$TILESERVER" --port 8080 /data/cuba.mbtiles
-    else
-        echo "❌ Error: No se encontró tileserver-gl"
-        exit 1
-    fi
+    echo "❌ Error: No se encontró tileserver-gl"
+    echo "🔍 Buscando en /usr/src/app..."
+    ls -la /usr/src/app/ 2>/dev/null || echo "No existe /usr/src/app"
+    echo "🔍 Buscando node_modules..."
+    find /usr -name "tileserver-gl*" 2>/dev/null | head -5
+    exit 1
 fi

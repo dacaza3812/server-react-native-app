@@ -1,9 +1,10 @@
+// Cargar manejadores de errores críticos ANTES que cualquier otra cosa
+require("./utils/processErrorHandlers");
 require("dotenv").config();
 require("express-async-errors");
 
 const fs = require("fs");
 const path = require("path");
-
 const EventEmitter = require("events");
 EventEmitter.defaultMaxListeners = 100;
 
@@ -12,6 +13,8 @@ const http = require("http");
 const cors = require("cors");
 const socketIo = require("socket.io");
 const connectDB = require("./config/connect");
+const { redis } = require("./utils/redisClient");
+const { setRedisClient, healthCheck, gracefulShutdown } = require("./utils/serverUtils");
 const notFoundMiddleware = require("./middleware/not-found");
 const errorHandlerMiddleware = require("./middleware/error-handler");
 const authMiddleware = require("./middleware/authentication");
@@ -25,7 +28,7 @@ if (!fs.existsSync(uploadsDir)) {
 const authRouter = require("./routes/auth");
 const rideRouter = require("./routes/ride");
 const versionRouter = require("./routes/version");
-const notificationRouter = require("./routes/notification")
+const notificationRouter = require("./routes/notification");
 const bannerRouter = require("./routes/banner");
 const deliveryRouter = require("./routes/delivery");
 const storeRouter = require("./routes/store");
@@ -59,9 +62,16 @@ app.use((req, res, next) => {
 // Initialize the WebSocket handling logic
 handleSocketConnection(io);
 
-// Health check endpoint
-app.get("/health", (req, res) => {
-  res.status(200).json({ status: "OK", timestamp: new Date().toISOString() });
+// Health check endpoint mejorado
+app.get("/health", async (req, res) => {
+  const health = await healthCheck();
+  const statusCode = health.status === "healthy" ? 200 : 503;
+  res.status(statusCode).json(health);
+});
+
+// Health check simple para load balancers
+app.get("/health/live", (req, res) => {
+  res.status(200).json({ status: "alive", timestamp: new Date().toISOString() });
 });
 
 // Routes
@@ -87,16 +97,20 @@ const start = async () => {
   try {
     await connectDB(process.env.MONGO_URI);
 
+    // Configurar cliente Redis para health checks
+    setRedisClient(redis);
+
+    // Configurar graceful shutdown
+    gracefulShutdown(server, io, redis);
+
     // Listen on all interfaces for external access
-    server.listen(process.env.PORT || 3000, "0.0.0.0", () =>
-      console.log(
-        `HTTP server is running on port ${
-          process.env.PORT || 3000
-        }`
-      )
-    );
+    server.listen(process.env.PORT || 3000, "0.0.0.0", () => {
+      console.log(`HTTP server is running on port ${process.env.PORT || 3000}`);
+      console.log(`Environment: ${process.env.NODE_ENV || "development"}`);
+    });
   } catch (error) {
-    console.log(error);
+    console.error("Failed to start server:", error);
+    process.exit(1);
   }
 };
 
@@ -104,6 +118,6 @@ const start = async () => {
 module.exports = app;
 
 // Start server only if not in test environment
-if (process.env.NODE_ENV !== 'test') {
+if (process.env.NODE_ENV !== "test") {
   start();
 }
